@@ -70,6 +70,8 @@ export default function ReaderPage() {
   const [ocrTextByPage, setOcrTextByPage] = useState<Record<number, string>>({});
   const [ocrPage, setOcrPage] = useState<number | null>(null);
   const [ocrError, setOcrError] = useState("");
+  const [pdfData, setPdfData] = useState<ArrayBuffer | null>(null);
+  const [pdfLoadError, setPdfLoadError] = useState("");
   const refreshNotes = () => queryClient.invalidateQueries({ queryKey: getListDocumentNotesQueryKey(documentId) });
   const createNote = useCreateDocumentNote({ mutation: { onSuccess: () => { void refreshNotes(); resetComposer(); } } });
   const updateNote = useUpdateNote({ mutation: { onSuccess: () => { void refreshNotes(); resetComposer(); } } });
@@ -102,6 +104,10 @@ export default function ReaderPage() {
   const currentDocument = currentIndex >= 0 ? documents[currentIndex] : undefined;
   const previousDocument = currentIndex > 0 ? documents[currentIndex - 1] : undefined;
   const nextDocument = currentIndex >= 0 && currentIndex < documents.length - 1 ? documents[currentIndex + 1] : undefined;
+  const objectUrl = currentDocument?.objectPath
+    ? `/api/storage${currentDocument.objectPath.startsWith("/") ? currentDocument.objectPath : `/${currentDocument.objectPath}`}`
+    : "";
+  const canReadPdf = currentDocument?.processingStatus !== "processing";
 
   useEffect(() => {
     setViewerLoaded(false);
@@ -115,6 +121,8 @@ export default function ReaderPage() {
     setOcrTextByPage({});
     setOcrPage(null);
     setOcrError("");
+    setPdfData(null);
+    setPdfLoadError("");
   }, [documentId]);
 
   useEffect(() => {
@@ -134,6 +142,36 @@ export default function ReaderPage() {
     observer.observe(element);
     return () => observer.disconnect();
   }, [currentDocument?.id]);
+
+  useEffect(() => {
+    setPdfData(null);
+    setPdfLoadError("");
+    setViewerLoaded(false);
+    if (!objectUrl || !canReadPdf) return;
+
+    const controller = new AbortController();
+    void fetch(objectUrl, {
+      credentials: "include",
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error(`PDF request failed with status ${response.status}`);
+        }
+        return response.arrayBuffer();
+      })
+      .then((buffer) => {
+        if (!controller.signal.aborted) setPdfData(buffer);
+      })
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        if (!controller.signal.aborted) {
+          setPdfLoadError("This PDF could not be downloaded for reading.");
+        }
+      });
+
+    return () => controller.abort();
+  }, [canReadPdf, objectUrl]);
 
   function resetComposer() {
     setShowComposer(false);
@@ -275,10 +313,6 @@ export default function ReaderPage() {
     );
   }
 
-  const objectUrl = currentDocument.objectPath
-    ? `/api/storage${currentDocument.objectPath.startsWith("/") ? currentDocument.objectPath : `/${currentDocument.objectPath}`}`
-    : "";
-  const canReadPdf = currentDocument.processingStatus !== "processing";
   const pageCount = renderedPageCount ?? currentDocument.pageCount;
   const currentOcrText = ocrTextByPage[readingPage] ?? "";
 
@@ -366,10 +400,10 @@ export default function ReaderPage() {
                         <span className="mt-5 inline-flex rounded-full bg-accent px-3 py-1.5 text-[11px] font-bold capitalize text-foreground">{currentDocument.processingStatus.replace("_", " ")}</span>
                       </div>
                     </div>
-                  ) : objectUrl ? (
+                  ) : objectUrl && pdfData ? (
                     <PdfDocument
                       key={currentDocument.id}
-                      file={objectUrl}
+                      file={{ data: pdfData }}
                       onLoadSuccess={({ numPages }) => {
                         setViewerLoaded(true);
                         setRenderedPageCount(numPages);
@@ -401,6 +435,14 @@ export default function ReaderPage() {
                          </div>
                        )}
                     </PdfDocument>
+                  ) : objectUrl ? (
+                    <div className="grid min-h-[60vh] place-items-center rounded-xl bg-[#e8dece] px-6 text-center">
+                      <div>
+                        {pdfLoadError ? <AlertCircle className="mx-auto text-primary" size={30} /> : <LoaderCircle className="mx-auto animate-spin text-primary" size={30} />}
+                        <p className="mt-3 font-serif text-xl font-bold">{pdfLoadError ? "This PDF could not be displayed." : "Opening your paper…"}</p>
+                        <p className="mt-2 text-sm text-muted-foreground">{pdfLoadError || "Preparing the private file for the reader."}</p>
+                      </div>
+                    </div>
                   ) : (
                     <div className="grid min-h-[60vh] place-items-center rounded-xl border-2 border-dashed border-[#a99b88] bg-[#e8dece] px-6 text-center">
                       <div><FileText className="mx-auto text-primary" size={34} /><p className="mt-4 font-serif text-xl font-bold">No private file path found.</p><p className="mt-2 text-sm text-muted-foreground">Return to the study set and try another document.</p></div>
