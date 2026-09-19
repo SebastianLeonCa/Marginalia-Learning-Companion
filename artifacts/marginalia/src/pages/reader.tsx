@@ -135,6 +135,28 @@ export default function ReaderPage() {
     setShowComposer(true);
   }
 
+  function capturePdfSelection() {
+    const viewer = viewerRef.current;
+    const selection = window.getSelection();
+    if (!viewer || !selection || selection.rangeCount === 0 || selection.isCollapsed) return;
+
+    const range = selection.getRangeAt(0);
+    const selectionNode =
+      range.commonAncestorContainer.nodeType === Node.ELEMENT_NODE
+        ? (range.commonAncestorContainer as Element)
+        : range.commonAncestorContainer.parentElement;
+    if (!selectionNode || !viewer.contains(selectionNode) || !selectionNode.closest(".react-pdf__Page__textContent")) return;
+
+    const passage = selection.toString().replace(/\s+/g, " ").trim().slice(0, 5000);
+    if (!passage) return;
+
+    setEditingNote(null);
+    setSelectedText(passage);
+    setNotePage(readingPage);
+    setBody("");
+    setShowComposer(true);
+  }
+
   function saveNote() {
     if (!selectedText.trim()) return;
     if (editingNote) {
@@ -276,10 +298,15 @@ export default function ReaderPage() {
             <section className="min-w-0">
               <div className="overflow-hidden rounded-[26px] border border-[#d5c7b2] bg-[#cfc2ae] shadow-[0_14px_34px_hsl(235_34%_18%/.13)]">
                 <div className="flex items-center justify-between border-b border-[#b9aa95] bg-[#e6dac8] px-4 py-3">
-                  <div className="flex items-center gap-2 text-xs font-bold text-foreground/70"><span className="h-2 w-2 rounded-full bg-secondary" /> Native PDF view</div>
+                  <div className="flex items-center gap-2 text-xs font-bold text-foreground/70"><span className="h-2 w-2 rounded-full bg-secondary" /> Selectable PDF view</div>
                   <span className="text-[10px] font-bold uppercase tracking-[.15em] text-muted-foreground">private file</span>
                 </div>
-                <div ref={viewerRef} className="relative min-h-[62vh] bg-[#bdb09d] p-2 sm:p-4">
+                <div
+                  ref={viewerRef}
+                  className="relative min-h-[62vh] bg-[#bdb09d] p-2 sm:p-4"
+                  onMouseUp={capturePdfSelection}
+                  onKeyUp={capturePdfSelection}
+                >
                   {!canReadPdf ? (
                     <div className="grid min-h-[60vh] place-items-center rounded-xl border-2 border-dashed border-[#a99b88] bg-[#e8dece] px-6 text-center">
                       <div className="max-w-sm">
@@ -322,7 +349,7 @@ export default function ReaderPage() {
                   )}
                 </div>
                 <div className="flex flex-wrap items-center justify-between gap-3 bg-[#e6dac8] px-4 py-3 text-xs text-muted-foreground">
-                  <span>{canReadPdf ? "The in-app PDF reader keeps the visible page in sync." : "Preparing a quiet place for this paper."}</span>
+                  <span>{canReadPdf ? "Select any text to start a note with this page attached." : "Preparing a quiet place for this paper."}</span>
                   <div className="flex items-center gap-2">
                     <button type="button" onClick={() => changeReadingPage(readingPage - 1)} disabled={readingPage <= 1} className="rounded-lg p-1.5 font-bold hover:bg-card disabled:opacity-40" aria-label="Previous page"><ChevronLeft size={15} /></button>
                     <label className="flex items-center gap-1 font-bold text-foreground/70">Page <input type="number" min={1} max={pageCount ?? undefined} value={readingPage} onChange={(event) => changeReadingPage(Number(event.target.value) || 1)} className="w-16 rounded-lg border border-[#b9aa95] bg-[#f7f0e3] px-2 py-1 text-center text-foreground" data-testid="input-reading-page" /></label>
@@ -348,13 +375,13 @@ export default function ReaderPage() {
                 <span className="rounded-full bg-secondary/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-secondary">{notesQuery.data?.length ?? 0} private</span>
               </div>
               <h2 className="mt-4 font-serif text-2xl font-bold">Your margin</h2>
-              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">Select and copy a passage in the PDF, then save it here with its page.</p>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">Select a passage in the PDF to bring its text and page here automatically.</p>
               {!showComposer && <button type="button" onClick={() => setShowComposer(true)} className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-3 py-2.5 text-xs font-bold text-primary-foreground hover:brightness-110" data-testid="button-add-annotation"><StickyNote size={14} /> Save a passage</button>}
               {showComposer && (
                 <div className="mt-4 space-y-3 rounded-2xl border border-border bg-card p-3" data-testid="note-composer">
                   <div className="flex items-center justify-between"><p className="text-xs font-bold">{editingNote ? "Edit note" : "New note"}</p><button type="button" onClick={resetComposer} aria-label="Close note editor"><X size={15} /></button></div>
                   <label className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Page<input type="number" min={1} max={currentDocument.pageCount ?? undefined} value={notePage} onChange={(event) => setNotePage(Math.max(1, Number(event.target.value)))} className="mt-1 w-full rounded-lg border border-border bg-background px-2 py-2 text-sm text-foreground" data-testid="input-note-page" /></label>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Selected passage<textarea value={selectedText} onChange={(event) => setSelectedText(event.target.value)} rows={4} maxLength={5000} placeholder="Paste the passage you selected…" className="mt-1 w-full resize-y rounded-lg border border-border bg-background px-2 py-2 text-sm normal-case tracking-normal text-foreground" data-testid="textarea-selected-passage" /></label>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Selected passage<textarea value={selectedText} onChange={(event) => setSelectedText(event.target.value)} rows={4} maxLength={5000} placeholder="Select text in the PDF or type a passage…" className="mt-1 w-full resize-y rounded-lg border border-border bg-background px-2 py-2 text-sm normal-case tracking-normal text-foreground" data-testid="textarea-selected-passage" /></label>
                   <label className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Your note<textarea value={body} onChange={(event) => setBody(event.target.value)} rows={3} maxLength={5000} placeholder="What do you want to remember?" className="mt-1 w-full resize-y rounded-lg border border-border bg-background px-2 py-2 text-sm normal-case tracking-normal text-foreground" data-testid="textarea-note-body" /></label>
                   <button type="button" onClick={saveNote} disabled={!selectedText.trim() || createNote.isPending || updateNote.isPending} className="w-full rounded-lg bg-primary px-3 py-2 text-xs font-bold text-primary-foreground disabled:opacity-50" data-testid="button-save-note">{createNote.isPending || updateNote.isPending ? "Saving…" : "Save note"}</button>
                 </div>
