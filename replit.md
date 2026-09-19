@@ -1,6 +1,6 @@
-# [Project name]
+# Marginalia
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+A private learning companion that turns dense PDFs into focused reading rooms, annotations, quizzes, and practice games.
 
 ## Run & Operate
 
@@ -10,6 +10,7 @@ _Replace the heading above with the project's name, and this line with one sente
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
 - Required env: `DATABASE_URL` — Postgres connection string
+- Clerk and App Storage are provisioned through the workspace-managed integrations.
 
 ## Stack
 
@@ -22,23 +23,34 @@ _Replace the heading above with the project's name, and this line with one sente
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `artifacts/marginalia` — React + Vite web app and the Marginalia visual language
+- `artifacts/api-server` — Express API, Clerk middleware, study-set routes, and private object serving
+- `lib/api-spec/openapi.yaml` — source of truth for API contracts
+- `lib/db/src/schema/study-sets.ts` — Study Set and Document tables
+- `lib/api-client-react/src/generated` — generated React Query client hooks
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- Clerk owns browser authentication; API routes derive the current user from the Clerk session cookie.
+- PDF bytes are stored in private App Storage; PostgreSQL stores only ownership, metadata, and the returned object path.
+- The Home surface is public for signed-out visitors and redirects signed-in users into the private portal.
+- OpenAPI remains the contract boundary; generated hooks are used by the frontend for dashboard, Study Set, and upload requests.
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+- Branded landing, sign-in, and sign-up screens
+- Private Home dashboard with Study Set creation from up to five PDFs
+- Study Set hub shell with document metadata and future learning modes
+- Private per-user object access for uploaded PDFs
 
 ## User preferences
 
-_Populate as you build — explicit user instructions worth remembering across sessions._
+- Warm, hand-illustrated, folk-art inspired direction with a calm paper-like reading surface.
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- Run API codegen after changing `lib/api-spec/openapi.yaml`.
+- Run `pnpm --filter @workspace/db run push` after changing Drizzle schema.
 
 ## Pointers
 

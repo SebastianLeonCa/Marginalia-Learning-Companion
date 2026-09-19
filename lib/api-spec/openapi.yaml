@@ -10,6 +10,12 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: dashboard
+    description: Home dashboard operations
+  - name: study-sets
+    description: Study set and document operations
+  - name: Storage
+    description: Object storage upload and serving endpoints.
 paths:
   /healthz:
     get:
@@ -24,6 +30,190 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /dashboard/summary:
+    get:
+      operationId: getDashboardSummary
+      tags: [dashboard]
+      summary: Get the signed-in user's home dashboard summary
+      responses:
+        "200":
+          description: Dashboard summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSummary"
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /study-sets:
+    get:
+      operationId: listStudySets
+      tags: [study-sets]
+      summary: List the signed-in user's study sets
+      responses:
+        "200":
+          description: Study sets
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StudySet"
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+    post:
+      operationId: createStudySet
+      tags: [study-sets]
+      summary: Create a study set from uploaded PDF metadata
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StudySetInput"
+      responses:
+        "201":
+          description: Study set created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudySetDetail"
+        "400":
+          description: Invalid study set
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /study-sets/{studySetId}:
+    get:
+      operationId: getStudySet
+      tags: [study-sets]
+      summary: Get one study set and its documents
+      parameters:
+        - name: studySetId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Study set detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudySetDetail"
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: Study set not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /storage/uploads/request-url:
+    post:
+      tags: [Storage]
+      operationId: requestUploadUrl
+      summary: Request a presigned URL for file upload
+      description: Returns a presigned URL for direct upload of one private PDF.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UploadUrlRequest"
+      responses:
+        "200":
+          description: Presigned upload URL generated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadUrlResponse"
+        "400":
+          description: Missing or invalid required fields
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /storage/public-objects/{filePath}:
+    get:
+      tags: [Storage]
+      operationId: getPublicObject
+      summary: Serve a public asset
+      parameters:
+        - name: filePath
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Object content
+          content:
+            "*/*":
+              schema:
+                type: string
+                format: binary
+        "404":
+          description: File not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /storage/objects/{objectPath}:
+    get:
+      tags: [Storage]
+      operationId: getStorageObject
+      summary: Serve a private uploaded object
+      parameters:
+        - name: objectPath
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Object content
+          content:
+            "*/*":
+              schema:
+                type: string
+                format: binary
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: File not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
 components:
   schemas:
     HealthStatus:
@@ -33,4 +223,199 @@ components:
           type: string
       required:
         - status
+    ErrorEnvelope:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+    DashboardSummary:
+      type: object
+      properties:
+        totalStudySets:
+          type: integer
+        totalDocuments:
+          type: integer
+        totalNotes:
+          type: integer
+        totalPoints:
+          type: integer
+        currentStreak:
+          type: integer
+        flaggedCount:
+          type: integer
+        continueReading:
+          anyOf:
+            - $ref: "#/components/schemas/ContinueReading"
+            - type: "null"
+      required:
+        - totalStudySets
+        - totalDocuments
+        - totalNotes
+        - totalPoints
+        - currentStreak
+        - flaggedCount
+        - continueReading
+    ContinueReading:
+      type: object
+      properties:
+        studySetId:
+          type: string
+        documentId:
+          type: string
+        studySetTitle:
+          type: string
+        documentName:
+          type: string
+        progress:
+          type: integer
+          minimum: 0
+          maximum: 100
+        page:
+          type: integer
+          minimum: 1
+      required:
+        - studySetId
+        - documentId
+        - studySetTitle
+        - documentName
+        - progress
+        - page
+    StudySet:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        documentCount:
+          type: integer
+        noteCount:
+          type: integer
+        bestScore:
+          type: integer
+        progress:
+          type: integer
+          minimum: 0
+          maximum: 100
+        lastOpenedAt:
+          type: ["string", "null"]
+          format: date-time
+      required:
+        - id
+        - title
+        - createdAt
+        - updatedAt
+        - documentCount
+        - noteCount
+        - bestScore
+        - progress
+        - lastOpenedAt
+    StudySetDetail:
+      allOf:
+        - $ref: "#/components/schemas/StudySet"
+        - type: object
+          properties:
+            documents:
+              type: array
+              items:
+                $ref: "#/components/schemas/Document"
+          required:
+            - documents
+    Document:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        size:
+          type: integer
+        objectPath:
+          type: string
+        pageCount:
+          type: ["integer", "null"]
+        processingStatus:
+          type: string
+          enum: [uploaded, processing, ready, needs_review]
+        uploadedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - size
+        - objectPath
+        - pageCount
+        - processingStatus
+        - uploadedAt
+    StudySetInput:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 160
+        documents:
+          type: array
+          minItems: 1
+          maxItems: 5
+          items:
+            $ref: "#/components/schemas/DocumentInput"
+      required:
+        - title
+        - documents
+    DocumentInput:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        size:
+          type: integer
+          minimum: 1
+        objectPath:
+          type: string
+          minLength: 1
+      required:
+        - name
+        - size
+        - objectPath
+    UploadUrlRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        size:
+          type: integer
+          minimum: 1
+        contentType:
+          type: string
+          minLength: 1
+      required:
+        - name
+        - size
+        - contentType
+    UploadUrlResponse:
+      type: object
+      properties:
+        uploadURL:
+          type: string
+          format: uri
+        objectPath:
+          type: string
+        metadata:
+          $ref: "#/components/schemas/UploadUrlRequest"
+      required:
+        - uploadURL
+        - objectPath
+        - metadata
 

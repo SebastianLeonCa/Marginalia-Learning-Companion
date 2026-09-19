@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Marginalia"
+description = "A personalized learning companion for dense reading. Upload PDFs into private Study Sets, then read, annotate, quiz, and practice with focused learning games."
+version = "1.0.0"
+id = "artifacts/marginalia"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 22711
+
+[services.development]
+run = "pnpm --filter @workspace/marginalia run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/marginalia", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/marginalia/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "22711"
+BASE_PATH = "/"
