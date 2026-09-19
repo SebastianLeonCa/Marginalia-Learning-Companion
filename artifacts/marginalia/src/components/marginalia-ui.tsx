@@ -139,12 +139,18 @@ export function StudySetCard({ set }: { set: StudySet }) {
 
 export function DocumentRow({ document, studySetId }: { document: Document; studySetId: string }) {
   const status = document.processingStatus === "ready" ? "Ready to read" : document.processingStatus === "processing" ? "Making sense of it…" : document.processingStatus.replace("_", " ");
+  const hasBeenOpened = document.lastOpenedAt !== null;
   return (
     <Link href={`/study-sets/${studySetId}/read/${document.id}`} className="group flex items-center gap-4 border-b border-border/70 py-4 last:border-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset" data-testid={`row-document-${document.id}`}>
-      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary"><FileText size={19} /></span>
+      <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${hasBeenOpened ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}><FileText size={19} /></span>
       <div className="min-w-0 flex-1">
         <p className="truncate font-semibold">{document.name}</p>
-        <p className="mt-1 text-xs text-muted-foreground">{document.pageCount ? `${document.pageCount} pages · ` : ""}{Math.max(1, Math.round(document.size / 1024 / 1024 * 10) / 10)} MB</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          {hasBeenOpened ? <span className="font-bold text-primary">Page {document.currentPage}</span> : <span className="font-semibold">Not opened yet</span>}
+          <span aria-hidden="true"> · </span>
+          {document.pageCount ? `${document.pageCount} pages · ` : ""}
+          {Math.max(1, Math.round(document.size / 1024 / 1024 * 10) / 10)} MB
+        </p>
       </div>
       <span className={`hidden rounded-full px-3 py-1 text-[11px] font-bold capitalize sm:inline-flex ${document.processingStatus === "ready" ? "bg-secondary/15 text-secondary" : "bg-accent text-foreground"}`}>{status}</span>
       <ChevronRight size={18} className="shrink-0 text-muted-foreground transition-transform group-hover:translate-x-1 group-hover:text-primary" />
