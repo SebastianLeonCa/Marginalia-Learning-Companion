@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { AlertCircle, ArrowLeft, BookOpen, ChevronLeft, ChevronRight, ExternalLink, FileText, Highlighter, LockKeyhole, Pencil, RotateCcw, Sparkles, StickyNote, Trash2, X } from "lucide-react";
+import { AlertCircle, ArrowLeft, BookOpen, ChevronLeft, ChevronRight, ExternalLink, FileScan, FileText, Highlighter, LoaderCircle, LockKeyhole, Pencil, RotateCcw, Sparkles, StickyNote, Trash2, X } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { getGetDashboardSummaryQueryKey, getGetStudySetQueryKey, getListDocumentNotesQueryKey, getListStudySetsQueryKey, useCreateDocumentNote, useDeleteNote, useExplainNote, useGetStudySet, useListDocumentNotes, useUpdateNote, useUpdateReadingPosition, type Note } from "@workspace/api-client-react";
 import { Link, useLocation, useParams } from "wouter";
@@ -59,6 +59,7 @@ export default function ReaderPage() {
   const [viewerWidth, setViewerWidth] = useState(900);
   const [renderedPageCount, setRenderedPageCount] = useState<number | null>(null);
   const viewerRef = useRef<HTMLDivElement>(null);
+  const ocrWorkerRef = useRef<import("tesseract.js").Worker | null>(null);
   const saveQueueRef = useRef<Promise<unknown>>(Promise.resolve());
   const [showComposer, setShowComposer] = useState(false);
   const [editingNote, setEditingNote] = useState<Note | null>(null);
@@ -66,6 +67,9 @@ export default function ReaderPage() {
   const [notePage, setNotePage] = useState(1);
   const [selectedText, setSelectedText] = useState("");
   const [body, setBody] = useState("");
+  const [ocrTextByPage, setOcrTextByPage] = useState<Record<number, string>>({});
+  const [ocrPage, setOcrPage] = useState<number | null>(null);
+  const [ocrError, setOcrError] = useState("");
   const refreshNotes = () => queryClient.invalidateQueries({ queryKey: getListDocumentNotesQueryKey(documentId) });
   const createNote = useCreateDocumentNote({ mutation: { onSuccess: () => { void refreshNotes(); resetComposer(); } } });
   const updateNote = useUpdateNote({ mutation: { onSuccess: () => { void refreshNotes(); resetComposer(); } } });
@@ -108,7 +112,18 @@ export default function ReaderPage() {
     setNotePage(1);
     setSelectedText("");
     setBody("");
+    setOcrTextByPage({});
+    setOcrPage(null);
+    setOcrError("");
   }, [documentId]);
+
+  useEffect(() => {
+    return () => {
+      const worker = ocrWorkerRef.current;
+      ocrWorkerRef.current = null;
+      if (worker) void worker.terminate();
+    };
+  }, []);
 
   useEffect(() => {
     const element = viewerRef.current;
@@ -146,7 +161,11 @@ export default function ReaderPage() {
       range.commonAncestorContainer.nodeType === Node.ELEMENT_NODE
         ? (range.commonAncestorContainer as Element)
         : range.commonAncestorContainer.parentElement;
-    if (!selectionNode || !viewer.contains(selectionNode) || !selectionNode.closest(".react-pdf__Page__textContent")) return;
+    if (
+      !selectionNode ||
+      !viewer.contains(selectionNode) ||
+      (!selectionNode.closest(".react-pdf__Page__textContent") && !selectionNode.closest("[data-ocr-transcript]"))
+    ) return;
 
     const passage = selection.toString().replace(/\s+/g, " ").trim().slice(0, 5000);
     if (!passage) return;
@@ -156,6 +175,33 @@ export default function ReaderPage() {
     setNotePage(readingPage);
     setBody("");
     setShowComposer(true);
+  }
+
+  async function recognizeCurrentPage() {
+    const canvas = viewerRef.current?.querySelector<HTMLCanvasElement>(".react-pdf__Page__canvas");
+    if (!canvas || ocrPage !== null) return;
+
+    const pageToRecognize = readingPage;
+    setOcrPage(pageToRecognize);
+    setOcrError("");
+
+    try {
+      if (!ocrWorkerRef.current) {
+        const { createWorker } = await import("tesseract.js");
+        ocrWorkerRef.current = await createWorker("eng");
+      }
+      const result = await ocrWorkerRef.current.recognize(canvas);
+      const transcript = result.data.text.replace(/\s+\n/g, "\n").trim();
+      if (!transcript) {
+        setOcrError("No readable text was found on this page.");
+        return;
+      }
+      setOcrTextByPage((current) => ({ ...current, [pageToRecognize]: transcript }));
+    } catch {
+      setOcrError("Text recognition could not finish. Please try this page again.");
+    } finally {
+      setOcrPage(null);
+    }
   }
 
   function saveNote() {
@@ -205,6 +251,7 @@ export default function ReaderPage() {
     const boundedPage = Math.max(1, Math.min(nextPage, pageCount ?? nextPage));
     setReadingPage(boundedPage);
     setNotePage(boundedPage);
+    setOcrError("");
     saveReadingPosition(boundedPage, pageCount ?? undefined);
   };
 
@@ -233,6 +280,7 @@ export default function ReaderPage() {
     : "";
   const canReadPdf = currentDocument.processingStatus !== "processing";
   const pageCount = renderedPageCount ?? currentDocument.pageCount;
+  const currentOcrText = ocrTextByPage[readingPage] ?? "";
 
   return (
     <AppShell>
@@ -334,7 +382,7 @@ export default function ReaderPage() {
                       }}
                       loading={<div className="grid min-h-[60vh] place-items-center rounded-xl bg-[#e8dece]"><p className="text-xs font-semibold text-muted-foreground">Opening your paper…</p></div>}
                       error={<div className="grid min-h-[60vh] place-items-center rounded-xl bg-[#e8dece] px-6 text-center"><div><AlertCircle className="mx-auto text-primary" size={30} /><p className="mt-3 font-serif text-xl font-bold">This PDF could not be displayed.</p><p className="mt-2 text-sm text-muted-foreground">Try opening it separately or return to the study set.</p></div></div>}
-                      className={`flex min-h-[60vh] justify-center overflow-auto rounded-xl transition-opacity duration-300 ${viewerLoaded ? "opacity-100" : "opacity-0"}`}
+                      className={`flex min-h-[60vh] flex-col items-center overflow-auto rounded-xl transition-opacity duration-300 ${viewerLoaded ? "opacity-100" : "opacity-0"}`}
                     >
                       <PdfPage
                         pageNumber={readingPage}
@@ -343,6 +391,15 @@ export default function ReaderPage() {
                         renderTextLayer
                         data-testid="controlled-pdf-page"
                       />
+                       {currentOcrText && (
+                         <div className="mx-2 mb-3 mt-1 w-[calc(100%-1rem)] max-w-[920px] rounded-xl border border-[#b9aa95] bg-[#f7f0e3] p-4 shadow-sm" data-ocr-transcript data-testid="ocr-transcript">
+                           <div className="flex items-center justify-between gap-3">
+                             <p className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[.16em] text-primary"><FileScan size={14} /> Recognized text · page {readingPage}</p>
+                             <span className="text-[10px] font-semibold text-muted-foreground">Processed privately in this browser</span>
+                           </div>
+                           <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-foreground/85">{currentOcrText}</p>
+                         </div>
+                       )}
                     </PdfDocument>
                   ) : (
                     <div className="grid min-h-[60vh] place-items-center rounded-xl border-2 border-dashed border-[#a99b88] bg-[#e8dece] px-6 text-center">
@@ -351,7 +408,17 @@ export default function ReaderPage() {
                   )}
                 </div>
                 <div className="flex flex-wrap items-center justify-between gap-3 bg-[#e6dac8] px-4 py-3 text-xs text-muted-foreground">
-                  <span>{canReadPdf ? "Select any text to start a note with this page attached." : "Preparing a quiet place for this paper."}</span>
+                  <div className="flex min-w-0 flex-wrap items-center gap-2">
+                    <span>{canReadPdf ? "Select any text to start a note with this page attached." : "Preparing a quiet place for this paper."}</span>
+                    {canReadPdf && objectUrl && !currentOcrText && (
+                      <button type="button" onClick={() => void recognizeCurrentPage()} disabled={ocrPage !== null || !viewerLoaded} className="inline-flex items-center gap-1.5 rounded-lg border border-[#b9aa95] bg-[#f7f0e3] px-2.5 py-1.5 font-bold text-primary hover:bg-card disabled:cursor-wait disabled:opacity-60" data-testid="button-recognize-page">
+                        {ocrPage === readingPage ? <LoaderCircle className="animate-spin" size={14} /> : <FileScan size={14} />}
+                        {ocrPage === readingPage ? "Reading page…" : "Scan has no selectable text?"}
+                      </button>
+                    )}
+                    {currentOcrText && <span className="font-semibold text-secondary">Recognized text is ready to select.</span>}
+                    {ocrError && <span className="font-semibold text-destructive" role="alert">{ocrError}</span>}
+                  </div>
                   <div className="flex items-center gap-2">
                     <button type="button" onClick={() => changeReadingPage(readingPage - 1)} disabled={readingPage <= 1} className="rounded-lg p-1.5 font-bold hover:bg-card disabled:opacity-40" aria-label="Previous page"><ChevronLeft size={15} /></button>
                     <label className="flex items-center gap-1 font-bold text-foreground/70">Page <input type="number" min={1} max={pageCount ?? undefined} value={readingPage} onChange={(event) => changeReadingPage(Number(event.target.value) || 1)} className="w-16 rounded-lg border border-[#b9aa95] bg-[#f7f0e3] px-2 py-1 text-center text-foreground" data-testid="input-reading-page" /></label>
