@@ -1,1 +1,2 @@
 - [Native PDF annotation constraint](native-pdf-annotation.md) — browser PDF iframes do not reliably expose selection/page metadata; use copy/paste or an in-app renderer.
+- [Workspace ESM codegen](workspace-esm-codegen.md) — keep TypeScript workspace exports explicit and prevent Orval from rewriting stable package barrels.
