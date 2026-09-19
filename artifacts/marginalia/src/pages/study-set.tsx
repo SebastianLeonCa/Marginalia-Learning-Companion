@@ -29,7 +29,7 @@ export default function StudySetPage() {
 
         <section className="mt-10">
           <div className="flex items-end justify-between gap-4"><div><p className="text-[11px] font-bold uppercase tracking-[.2em] text-primary">the reading pile</p><h2 className="mt-2 font-serif text-3xl font-bold">Documents</h2></div><span className="text-sm font-semibold text-muted-foreground">{set.documents.length} tucked in here</span></div>
-          <div className="mt-5 rounded-3xl border border-border bg-card px-5 md:px-7">{set.documents.length ? set.documents.map((document) => <DocumentRow key={document.id} document={document} />) : <div className="py-14 text-center"><FileText className="mx-auto text-muted-foreground" size={32} /><p className="mt-3 font-serif text-xl font-bold">Nothing on the desk yet</p></div>}</div>
+          <div className="mt-5 rounded-3xl border border-border bg-card px-5 md:px-7">{set.documents.length ? set.documents.map((document) => <DocumentRow key={document.id} document={document} studySetId={studySetId} />) : <div className="py-14 text-center"><FileText className="mx-auto text-muted-foreground" size={32} /><p className="mt-3 font-serif text-xl font-bold">Nothing on the desk yet</p></div>}</div>
         </section>
 
         <section className="mt-12">

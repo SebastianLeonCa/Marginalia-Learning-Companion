@@ -9,6 +9,7 @@ import NotFound from '@/pages/not-found';
 import LandingPage from '@/pages/landing';
 import HomePage from '@/pages/home';
 import StudySetPage from '@/pages/study-set';
+import ReaderPage from '@/pages/reader';
 import {
   Redirect,
   Route,
@@ -49,8 +50,8 @@ const clerkAppearance = {
     formFieldLabel: 'font-bold text-[#252944]',
     formFieldInput: 'bg-[#fffaf0] border-[#d9cdb7] text-[#252944] rounded-xl',
     formButtonPrimary: 'bg-[#b63d36] hover:bg-[#9f332e] rounded-xl font-bold',
-    socialButtonsBlockButton: 'border-2 border-[#d9cdb7] bg-[#fffaf0] rounded-xl',
-    socialButtonsBlockButtonText: 'font-bold text-[#252944]',
+    socialButtonsBlockButton: '!border-2 !border-[#d9cdb7] !bg-white rounded-xl shadow-sm',
+    socialButtonsBlockButtonText: '!font-bold !text-[#252944]',
     footerActionLink: 'text-[#b63d36] font-bold',
     footerActionText: 'text-[#686a78]',
     dividerText: 'text-[#686a78]',
@@ -93,6 +94,7 @@ function Router() {
         <Route path="/sign-in/*?" component={SignInPage} />
         <Route path="/sign-up/*?" component={SignUpPage} />
         <Route path="/home"><PrivateRoute><HomePage /></PrivateRoute></Route>
+        <Route path="/study-sets/:studySetId/read/:documentId"><PrivateRoute><ReaderPage /></PrivateRoute></Route>
         <Route path="/study-sets/:studySetId"><PrivateRoute><StudySetPage /></PrivateRoute></Route>
         <Route component={NotFound} />
       </Switch>
