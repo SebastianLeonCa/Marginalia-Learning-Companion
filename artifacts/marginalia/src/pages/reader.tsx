@@ -94,7 +94,7 @@ export default function ReaderPage() {
   const objectUrl = currentDocument.objectPath
     ? `/api/storage${currentDocument.objectPath.startsWith("/") ? currentDocument.objectPath : `/${currentDocument.objectPath}`}`
     : "";
-  const isReady = currentDocument.processingStatus === "ready";
+  const canReadPdf = currentDocument.processingStatus !== "processing";
 
   return (
     <AppShell>
@@ -166,7 +166,7 @@ export default function ReaderPage() {
                   <span className="text-[10px] font-bold uppercase tracking-[.15em] text-muted-foreground">private file</span>
                 </div>
                 <div className="relative min-h-[62vh] bg-[#bdb09d] p-2 sm:p-4">
-                  {!isReady ? (
+                  {!canReadPdf ? (
                     <div className="grid min-h-[60vh] place-items-center rounded-xl border-2 border-dashed border-[#a99b88] bg-[#e8dece] px-6 text-center">
                       <div className="max-w-sm">
                         <span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-accent text-foreground"><FileText size={27} /></span>
@@ -187,7 +187,7 @@ export default function ReaderPage() {
                   )}
                 </div>
                 <div className="flex flex-wrap items-center justify-between gap-3 bg-[#e6dac8] px-4 py-3 text-xs text-muted-foreground">
-                  <span>{isReady ? "The browser PDF surface keeps your file private." : "Preparing a quiet place for this paper."}</span>
+                  <span>{canReadPdf ? "The browser PDF surface keeps your file private." : "Preparing a quiet place for this paper."}</span>
                   <span className="font-bold text-foreground/60">{currentDocument.pageCount ? `${currentDocument.pageCount} pages` : "Page count pending"}</span>
                 </div>
               </div>
