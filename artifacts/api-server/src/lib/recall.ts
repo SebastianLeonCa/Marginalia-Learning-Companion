@@ -271,6 +271,77 @@ function parseGroqContent(content: string): unknown {
   return JSON.parse((fenced?.[1] ?? content).trim());
 }
 
+function exactSourceQuote(sourceText: string, candidate: string): string {
+  const normalizedCandidate = normalizedText(candidate);
+  const sourceIndex = sourceText
+    .toLocaleLowerCase()
+    .indexOf(normalizedCandidate.toLocaleLowerCase());
+  return sourceIndex >= 0
+    ? sourceText.slice(sourceIndex, sourceIndex + normalizedCandidate.length)
+    : candidate;
+}
+
+function normalizeGroqQuiz(value: unknown, sourceText: string): unknown {
+  const root = asRecord(value);
+  if (!root || !Array.isArray(root.questions)) return value;
+
+  return {
+    questions: root.questions.map((rawQuestion) => {
+      const question = asRecord(rawQuestion);
+      if (!question) return rawQuestion;
+
+      const rawOptions = question.options;
+      const options = Array.isArray(rawOptions)
+        ? rawOptions.map((option) => {
+            const optionRecord = asRecord(option);
+            return typeof optionRecord?.text === "string"
+              ? optionRecord.text
+              : typeof optionRecord?.label === "string"
+                ? optionRecord.label
+                : option;
+          })
+        : asRecord(rawOptions)
+          ? ["A", "B", "C", "D"].map((key) => asRecord(rawOptions)?.[key])
+          : rawOptions;
+      const rawAnswer =
+        question.correctOptionIndex ??
+        question.answer ??
+        question.correctAnswer;
+      const correctOptionIndex =
+        Number.isInteger(rawAnswer)
+          ? rawAnswer
+          : typeof rawAnswer === "string" &&
+              /^(?:option\s*)?[A-D](?:[.):]|\s|$)/i.test(rawAnswer)
+            ? rawAnswer.match(/[A-D]/i)![0].toUpperCase().charCodeAt(0) -
+              "A".charCodeAt(0)
+            : typeof rawAnswer === "string" && /^\d+$/.test(rawAnswer)
+              ? Number(rawAnswer)
+              : typeof rawAnswer === "string" && Array.isArray(options)
+                ? options.findIndex((option) => {
+                    const optionText = normalizedText(option).toLocaleLowerCase();
+                    const answerText = normalizedText(rawAnswer).toLocaleLowerCase();
+                    return (
+                      optionText === answerText ||
+                      optionText.includes(answerText) ||
+                      answerText.includes(optionText)
+                    );
+                  })
+              : rawAnswer;
+
+      return {
+        prompt: question.prompt ?? question.question,
+        options,
+        correctOptionIndex,
+        explanation: question.explanation,
+        sourceQuote:
+          typeof question.sourceQuote === "string"
+            ? exactSourceQuote(sourceText, question.sourceQuote)
+            : question.sourceQuote,
+      };
+    }),
+  };
+}
+
 async function generateGroqRecallQuestions(
   sourceText: string,
 ): Promise<GeneratedRecallQuestion[]> {
@@ -286,7 +357,7 @@ async function generateGroqRecallQuestions(
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: process.env.GROQ_MODEL ?? "llama-3.3-70b-versatile",
+      model: process.env.GROQ_MODEL ?? "openai/gpt-oss-120b",
       temperature: 0.2,
       max_tokens: 6_000,
       response_format: { type: "json_object" },
@@ -325,7 +396,10 @@ async function generateGroqRecallQuestions(
   }
 
   try {
-    return validateGeneratedRecallQuiz(parseGroqContent(content), sourceText);
+    return validateGeneratedRecallQuiz(
+      normalizeGroqQuiz(parseGroqContent(content), sourceText),
+      sourceText,
+    );
   } catch (error) {
     if (error instanceof InvalidGeneratedQuizError) throw error;
     throw new InvalidGeneratedQuizError("Groq returned invalid quiz JSON");

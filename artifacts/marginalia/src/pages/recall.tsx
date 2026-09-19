@@ -44,6 +44,7 @@ export default function RecallPage() {
   const [feedback, setFeedback] = useState<RecallAnswerResult | null>(null);
   const [score, setScore] = useState(0);
   const [finished, setFinished] = useState(false);
+  const [showRegeneratePrompt, setShowRegeneratePrompt] = useState(false);
 
   const createQuiz = useCreateRecallQuiz({
     mutation: {
@@ -78,6 +79,7 @@ export default function RecallPage() {
   }, [studySetId, documentId]);
 
   function restart() {
+    setShowRegeneratePrompt(false);
     setQuiz(null);
     setFeedback(null);
     setSelectedOptionId("");
@@ -176,7 +178,25 @@ export default function RecallPage() {
         <div className="mx-auto max-w-3xl">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <Link href={`/study-sets/${studySetId}`} className="inline-flex items-center gap-2 text-sm font-bold text-muted-foreground hover:text-primary"><ArrowLeft size={16} /> Leave quiz</Link>
-            <span className="inline-flex max-w-[70vw] items-center gap-2 rounded-full bg-card px-4 py-2 text-xs font-bold text-muted-foreground"><FileText size={14} /><span className="truncate">{quiz.documentName}</span></span>
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <span className="inline-flex max-w-[70vw] items-center gap-2 rounded-full bg-card px-4 py-2 text-xs font-bold text-muted-foreground"><FileText size={14} /><span className="truncate">{quiz.documentName}</span></span>
+              {!showRegeneratePrompt ? (
+                <button
+                  type="button"
+                  onClick={() => setShowRegeneratePrompt(true)}
+                  className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-xs font-bold text-muted-foreground hover:border-primary hover:text-primary"
+                  data-testid="button-regenerate-recall"
+                >
+                  <RotateCcw size={14} /> New quiz
+                </button>
+              ) : (
+                <div className="flex items-center gap-2 rounded-xl border border-primary/25 bg-primary/10 px-3 py-2 text-xs font-bold text-foreground" role="group" aria-label="Confirm new quiz">
+                  <span>Replace this quiz?</span>
+                  <button type="button" onClick={() => setShowRegeneratePrompt(false)} className="rounded-lg px-2 py-1 text-muted-foreground hover:bg-card" data-testid="button-cancel-regenerate-recall">Cancel</button>
+                  <button type="button" onClick={restart} disabled={createQuiz.isPending} className="rounded-lg bg-primary px-2 py-1 text-primary-foreground disabled:opacity-50" data-testid="button-confirm-regenerate-recall">Generate</button>
+                </div>
+              )}
+            </div>
           </div>
 
           <section className="mt-7 rounded-3xl border-2 border-blue bg-card p-6 shadow-[7px_7px_0_#252944] md:p-10">
