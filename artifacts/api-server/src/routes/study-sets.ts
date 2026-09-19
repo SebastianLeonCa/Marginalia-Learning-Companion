@@ -8,7 +8,7 @@ import {
   GetStudySetResponse,
   ListStudySetsResponse,
 } from "@workspace/api-zod";
-import { db, documentsTable, studySetsTable } from "@workspace/db";
+import { db, documentsTable, notesTable, studySetsTable } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
 
 const router: IRouter = Router();
@@ -54,8 +54,14 @@ async function getStudySetDetail(studySetId: string, userId: string) {
     )
     .orderBy(asc(documentsTable.uploadedAt));
 
+  const [noteTotals] = await db
+    .select({ count: count(notesTable.id) })
+    .from(notesTable)
+    .where(and(eq(notesTable.studySetId, studySet.id), eq(notesTable.ownerId, userId)));
+
   return {
     ...summaryFromStudySet(studySet, documents.length),
+    noteCount: Number(noteTotals?.count ?? 0),
     documents,
   };
 }
@@ -77,6 +83,10 @@ router.get("/dashboard/summary", requireAuth, async (_req, res): Promise<void> =
     .select({ count: count(documentsTable.id) })
     .from(documentsTable)
     .where(eq(documentsTable.ownerId, userId));
+  const [noteTotals] = await db
+    .select({ count: count(notesTable.id) })
+    .from(notesTable)
+    .where(eq(notesTable.ownerId, userId));
 
   const continueStudySet = studySets[0];
   const continueReading = continueStudySet
@@ -112,7 +122,7 @@ router.get("/dashboard/summary", requireAuth, async (_req, res): Promise<void> =
     GetDashboardSummaryResponse.parse({
       totalStudySets: studySets.length,
       totalDocuments: Number(documentTotals?.count ?? 0),
-      totalNotes: 0,
+      totalNotes: Number(noteTotals?.count ?? 0),
       totalPoints: 0,
       currentStreak: 0,
       flaggedCount: 0,
@@ -133,12 +143,22 @@ router.get("/study-sets", requireAuth, async (_req, res): Promise<void> => {
     .where(eq(studySetsTable.ownerId, userId))
     .groupBy(studySetsTable.id)
     .orderBy(desc(studySetsTable.updatedAt));
+  const noteRows = await db
+    .select({
+      studySetId: notesTable.studySetId,
+      noteCount: count(notesTable.id),
+    })
+    .from(notesTable)
+    .where(eq(notesTable.ownerId, userId))
+    .groupBy(notesTable.studySetId);
+  const noteCounts = new Map(noteRows.map((row) => [row.studySetId, Number(row.noteCount)]));
 
   res.json(
     ListStudySetsResponse.parse(
-      rows.map(({ studySet, documentCount }) =>
-        summaryFromStudySet(studySet, Number(documentCount)),
-      ),
+      rows.map(({ studySet, documentCount }) => ({
+        ...summaryFromStudySet(studySet, Number(documentCount)),
+        noteCount: noteCounts.get(studySet.id) ?? 0,
+      })),
     ),
   );
 });

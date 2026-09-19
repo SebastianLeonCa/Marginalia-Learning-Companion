@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { AlertCircle, ArrowLeft, BookOpen, ChevronLeft, ChevronRight, ExternalLink, FileText, Highlighter, LockKeyhole, Maximize2, RotateCcw, StickyNote } from "lucide-react";
-import { useGetStudySet } from "@workspace/api-client-react";
+import { AlertCircle, ArrowLeft, BookOpen, ChevronLeft, ChevronRight, ExternalLink, FileText, Highlighter, LockKeyhole, Pencil, RotateCcw, Sparkles, StickyNote, Trash2, X } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { getListDocumentNotesQueryKey, useCreateDocumentNote, useDeleteNote, useExplainNote, useGetStudySet, useListDocumentNotes, useUpdateNote, type Note } from "@workspace/api-client-react";
 import { Link, useLocation, useParams } from "wouter";
 import { AppShell } from "@/components/marginalia-ui";
 
@@ -43,7 +44,19 @@ export default function ReaderPage() {
   const { studySetId = "", documentId = "" } = useParams<{ studySetId: string; documentId: string }>();
   const [, setLocation] = useLocation();
   const query = useGetStudySet(studySetId);
+  const notesQuery = useListDocumentNotes(documentId);
+  const queryClient = useQueryClient();
   const [viewerLoaded, setViewerLoaded] = useState(false);
+  const [showComposer, setShowComposer] = useState(false);
+  const [editingNote, setEditingNote] = useState<Note | null>(null);
+  const [page, setPage] = useState(1);
+  const [selectedText, setSelectedText] = useState("");
+  const [body, setBody] = useState("");
+  const refreshNotes = () => queryClient.invalidateQueries({ queryKey: getListDocumentNotesQueryKey(documentId) });
+  const createNote = useCreateDocumentNote({ mutation: { onSuccess: () => { void refreshNotes(); resetComposer(); } } });
+  const updateNote = useUpdateNote({ mutation: { onSuccess: () => { void refreshNotes(); resetComposer(); } } });
+  const deleteNote = useDeleteNote({ mutation: { onSuccess: () => void refreshNotes() } });
+  const explainNote = useExplainNote({ mutation: { onSuccess: () => void refreshNotes() } });
 
   const documents = query.data?.documents ?? [];
   const currentIndex = documents.findIndex((document) => document.id === documentId);
@@ -53,11 +66,49 @@ export default function ReaderPage() {
 
   useEffect(() => {
     setViewerLoaded(false);
+    setShowComposer(false);
+    setEditingNote(null);
+    setPage(1);
+    setSelectedText("");
+    setBody("");
   }, [documentId]);
+
+  function resetComposer() {
+    setShowComposer(false);
+    setEditingNote(null);
+    setPage(1);
+    setSelectedText("");
+    setBody("");
+  }
+
+  function beginEdit(note: Note) {
+    setEditingNote(note);
+    setPage(note.page);
+    setSelectedText(note.selectedText);
+    setBody(note.body);
+    setShowComposer(true);
+  }
+
+  function saveNote() {
+    if (!selectedText.trim()) return;
+    if (editingNote) {
+      updateNote.mutate({ noteId: editingNote.id, data: { page, selectedText, body } });
+    } else {
+      createNote.mutate({ documentId, data: { page, selectedText, body } });
+    }
+  }
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
+      const target = event.target;
+      if (
+        target instanceof HTMLElement &&
+        (target.isContentEditable ||
+          ["INPUT", "TEXTAREA", "SELECT", "BUTTON"].includes(target.tagName))
+      ) {
+        return;
+      }
       if (event.key === "ArrowLeft" && previousDocument) {
         event.preventDefault();
         setLocation(`/study-sets/${studySetId}/read/${previousDocument.id}`);
@@ -202,24 +253,35 @@ export default function ReaderPage() {
               </div>
             </section>
 
-            <aside className="rounded-[24px] border border-border bg-[#f7f0e3] p-5 shadow-[0_8px_24px_hsl(235_34%_18%/.06)]" aria-label="Annotation space">
+            <aside className="rounded-[24px] border border-border bg-[#f7f0e3] p-4 shadow-[0_8px_24px_hsl(235_34%_18%/.06)]" aria-label="Annotation space">
               <div className="flex items-start justify-between gap-3">
                 <span className="grid h-10 w-10 place-items-center rounded-xl bg-accent text-foreground"><Highlighter size={19} /></span>
-                <span className="rounded-full bg-secondary/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-secondary">on the horizon</span>
+                <span className="rounded-full bg-secondary/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-secondary">{notesQuery.data?.length ?? 0} private</span>
               </div>
-              <h2 className="mt-5 font-serif text-2xl font-bold">A margin for your thinking.</h2>
-              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">Highlights, questions, and small revelations will have a home here.</p>
-              <div className="mt-6 rounded-2xl border border-dashed border-[#cdbda6] bg-[#efe6d4] p-4">
-                <StickyNote className="text-primary" size={19} />
-                <p className="mt-3 text-sm font-bold">Your first mark is still waiting.</p>
-                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">Annotation tools are reserved for a future reading session.</p>
-              </div>
-              <button type="button" disabled className="mt-4 inline-flex w-full cursor-not-allowed items-center justify-center gap-2 rounded-xl border border-border bg-muted/60 px-3 py-2.5 text-xs font-bold text-muted-foreground" data-testid="button-add-annotation">
-                <StickyNote size={14} /> Add a note <span className="ml-auto text-[10px] uppercase tracking-wider">soon</span>
-              </button>
-              <div className="mt-6 border-t border-border/70 pt-4 text-xs leading-relaxed text-muted-foreground">
-                <p className="flex items-center gap-2 font-bold text-foreground/70"><Maximize2 size={13} /> Reading tip</p>
-                <p className="mt-2">Open the PDF separately when you want a wider, distraction-free page.</p>
+              <h2 className="mt-4 font-serif text-2xl font-bold">Your margin</h2>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">Select and copy a passage in the PDF, then save it here with its page.</p>
+              {!showComposer && <button type="button" onClick={() => setShowComposer(true)} className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-3 py-2.5 text-xs font-bold text-primary-foreground hover:brightness-110" data-testid="button-add-annotation"><StickyNote size={14} /> Save a passage</button>}
+              {showComposer && (
+                <div className="mt-4 space-y-3 rounded-2xl border border-border bg-card p-3" data-testid="note-composer">
+                  <div className="flex items-center justify-between"><p className="text-xs font-bold">{editingNote ? "Edit note" : "New note"}</p><button type="button" onClick={resetComposer} aria-label="Close note editor"><X size={15} /></button></div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Page<input type="number" min={1} max={currentDocument.pageCount ?? undefined} value={page} onChange={(event) => setPage(Math.max(1, Number(event.target.value)))} className="mt-1 w-full rounded-lg border border-border bg-background px-2 py-2 text-sm text-foreground" data-testid="input-note-page" /></label>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Selected passage<textarea value={selectedText} onChange={(event) => setSelectedText(event.target.value)} rows={4} maxLength={5000} placeholder="Paste the passage you selected…" className="mt-1 w-full resize-y rounded-lg border border-border bg-background px-2 py-2 text-sm normal-case tracking-normal text-foreground" data-testid="textarea-selected-passage" /></label>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Your note<textarea value={body} onChange={(event) => setBody(event.target.value)} rows={3} maxLength={5000} placeholder="What do you want to remember?" className="mt-1 w-full resize-y rounded-lg border border-border bg-background px-2 py-2 text-sm normal-case tracking-normal text-foreground" data-testid="textarea-note-body" /></label>
+                  <button type="button" onClick={saveNote} disabled={!selectedText.trim() || createNote.isPending || updateNote.isPending} className="w-full rounded-lg bg-primary px-3 py-2 text-xs font-bold text-primary-foreground disabled:opacity-50" data-testid="button-save-note">{createNote.isPending || updateNote.isPending ? "Saving…" : "Save note"}</button>
+                </div>
+              )}
+              <div className="mt-4 max-h-[52vh] space-y-3 overflow-y-auto pr-1">
+                {notesQuery.isLoading && <p className="rounded-xl bg-[#efe6d4] p-3 text-xs text-muted-foreground">Loading your notes…</p>}
+                {!notesQuery.isLoading && !notesQuery.data?.length && <div className="rounded-2xl border border-dashed border-[#cdbda6] bg-[#efe6d4] p-4"><StickyNote className="text-primary" size={19} /><p className="mt-3 text-sm font-bold">Your first mark is waiting.</p></div>}
+                {notesQuery.data?.map((note) => (
+                  <article key={note.id} className="rounded-2xl border border-border bg-card p-3" data-testid={`note-${note.id}`}>
+                    <div className="flex items-center justify-between gap-2"><span className="rounded-full bg-accent px-2 py-1 text-[10px] font-bold">Page {note.page}</span><div className="flex gap-1"><button type="button" onClick={() => beginEdit(note)} className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground" aria-label="Edit note"><Pencil size={13} /></button><button type="button" onClick={() => { if (window.confirm("Delete this note?")) deleteNote.mutate({ noteId: note.id }); }} className="rounded-md p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive" aria-label="Delete note"><Trash2 size={13} /></button></div></div>
+                    <blockquote className="mt-3 border-l-2 border-primary pl-2 text-xs italic leading-relaxed text-foreground/75">“{note.selectedText}”</blockquote>
+                    {note.body && <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed">{note.body}</p>}
+                    {note.explanation && <div className="mt-3 rounded-xl bg-secondary/10 p-3"><p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-secondary"><Sparkles size={12} /> Plain-language explanation</p><p className="mt-2 whitespace-pre-wrap text-xs leading-relaxed">{note.explanation}</p><p className="mt-3 border-t border-secondary/15 pt-2 text-[10px] font-bold text-muted-foreground">Reference: {currentDocument.name}, page {note.page}</p></div>}
+                    <button type="button" onClick={() => explainNote.mutate({ noteId: note.id })} disabled={explainNote.isPending} className="mt-3 inline-flex items-center gap-1.5 text-xs font-bold text-secondary hover:underline disabled:opacity-50"><Sparkles size={13} /> {note.explanation ? "Regenerate explanation" : "Explain simply"}</button>
+                  </article>
+                ))}
               </div>
             </aside>
           </div>

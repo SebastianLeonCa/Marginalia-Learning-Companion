@@ -31,5 +31,23 @@ export const documentsTable = pgTable("documents", {
   uploadedAt: timestamp("uploaded_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
+export const notesTable = pgTable("notes", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  documentId: uuid("document_id")
+    .notNull()
+    .references(() => documentsTable.id, { onDelete: "cascade" }),
+  studySetId: uuid("study_set_id")
+    .notNull()
+    .references(() => studySetsTable.id, { onDelete: "cascade" }),
+  ownerId: text("owner_id").notNull(),
+  page: integer("page").notNull(),
+  selectedText: text("selected_text").notNull(),
+  body: text("body").default("").notNull(),
+  explanation: text("explanation"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
 export type StudySet = typeof studySetsTable.$inferSelect;
 export type Document = typeof documentsTable.$inferSelect;
+export type Note = typeof notesTable.$inferSelect;

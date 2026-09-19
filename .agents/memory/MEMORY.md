@@ -1,0 +1,1 @@
+- [Native PDF annotation constraint](native-pdf-annotation.md) — browser PDF iframes do not reliably expose selection/page metadata; use copy/paste or an in-app renderer.

@@ -101,6 +101,43 @@ export interface StudySetInput {
   documents: DocumentInput[];
 }
 
+export interface Note {
+  id: string;
+  documentId: string;
+  studySetId: string;
+  page: number;
+  selectedText: string;
+  body: string;
+  /** @nullable */
+  explanation: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface NoteInput {
+  /** @minimum 1 */
+  page: number;
+  /**
+     * @minLength 1
+     * @maxLength 5000
+     */
+  selectedText: string;
+  /** @maxLength 5000 */
+  body: string;
+}
+
+export interface NoteUpdate {
+  /** @minimum 1 */
+  page?: number;
+  /**
+     * @minLength 1
+     * @maxLength 5000
+     */
+  selectedText?: string;
+  /** @maxLength 5000 */
+  body?: string;
+}
+
 export interface UploadUrlRequest {
   /** @minLength 1 */
   name: string;

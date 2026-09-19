@@ -14,6 +14,8 @@ tags:
     description: Home dashboard operations
   - name: study-sets
     description: Study set and document operations
+  - name: notes
+    description: Private document notes and explanations
   - name: Storage
     description: Object storage upload and serving endpoints.
 paths:
@@ -127,6 +129,120 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
+  /documents/{documentId}/notes:
+    get:
+      operationId: listDocumentNotes
+      tags: [notes]
+      summary: List the signed-in user's notes for a document
+      parameters:
+        - $ref: "#/components/parameters/DocumentId"
+      responses:
+        "200":
+          description: Document notes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Note"
+        "404":
+          description: Document not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+    post:
+      operationId: createDocumentNote
+      tags: [notes]
+      summary: Save a selected passage as a private note
+      parameters:
+        - $ref: "#/components/parameters/DocumentId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NoteInput"
+      responses:
+        "201":
+          description: Note created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Note"
+        "400":
+          description: Invalid note
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: Document not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /notes/{noteId}:
+    patch:
+      operationId: updateNote
+      tags: [notes]
+      summary: Edit a private note
+      parameters:
+        - $ref: "#/components/parameters/NoteId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NoteUpdate"
+      responses:
+        "200":
+          description: Note updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Note"
+        "404":
+          description: Note not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+    delete:
+      operationId: deleteNote
+      tags: [notes]
+      summary: Delete a private note
+      parameters:
+        - $ref: "#/components/parameters/NoteId"
+      responses:
+        "204":
+          description: Note deleted
+        "404":
+          description: Note not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /notes/{noteId}/explanation:
+    post:
+      operationId: explainNote
+      tags: [notes]
+      summary: Generate a plain-language explanation with its source reference
+      parameters:
+        - $ref: "#/components/parameters/NoteId"
+      responses:
+        "200":
+          description: Note with generated explanation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Note"
+        "404":
+          description: Note not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
   /storage/uploads/request-url:
     post:
       tags: [Storage]
@@ -215,6 +331,21 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
 components:
+  parameters:
+    DocumentId:
+      name: documentId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    NoteId:
+      name: noteId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
   schemas:
     HealthStatus:
       type: object
@@ -388,6 +519,57 @@ components:
         - name
         - size
         - objectPath
+    Note:
+      type: object
+      properties:
+        id:
+          type: string
+        documentId:
+          type: string
+        studySetId:
+          type: string
+        page:
+          type: integer
+        selectedText:
+          type: string
+        body:
+          type: string
+        explanation:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required: [id, documentId, studySetId, page, selectedText, body, explanation, createdAt, updatedAt]
+    NoteInput:
+      type: object
+      properties:
+        page:
+          type: integer
+          minimum: 1
+        selectedText:
+          type: string
+          minLength: 1
+          maxLength: 5000
+        body:
+          type: string
+          maxLength: 5000
+      required: [page, selectedText, body]
+    NoteUpdate:
+      type: object
+      properties:
+        page:
+          type: integer
+          minimum: 1
+        selectedText:
+          type: string
+          minLength: 1
+          maxLength: 5000
+        body:
+          type: string
+          maxLength: 5000
     UploadUrlRequest:
       type: object
       properties:

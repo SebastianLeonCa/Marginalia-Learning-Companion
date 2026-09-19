@@ -151,6 +151,123 @@ export const GetStudySetResponse = zod.object({
 
 
 /**
+ * @summary List the signed-in user's notes for a document
+ */
+export const ListDocumentNotesParams = zod.object({
+  "documentId": zod.coerce.string().uuid()
+})
+
+export const ListDocumentNotesResponseItem = zod.object({
+  "id": zod.string(),
+  "documentId": zod.string(),
+  "studySetId": zod.string(),
+  "page": zod.number().int(),
+  "selectedText": zod.string(),
+  "body": zod.string(),
+  "explanation": zod.string().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const ListDocumentNotesResponse = zod.array(ListDocumentNotesResponseItem)
+
+
+/**
+ * @summary Save a selected passage as a private note
+ */
+export const CreateDocumentNoteParams = zod.object({
+  "documentId": zod.coerce.string().uuid()
+})
+
+
+export const createDocumentNoteBodySelectedTextMax = 5000;
+
+export const createDocumentNoteBodyBodyMax = 5000;
+
+
+
+export const CreateDocumentNoteBody = zod.object({
+  "page": zod.number().int().min(1),
+  "selectedText": zod.string().min(1).max(createDocumentNoteBodySelectedTextMax),
+  "body": zod.string().max(createDocumentNoteBodyBodyMax)
+})
+
+export const CreateDocumentNoteResponse = zod.object({
+  "id": zod.string(),
+  "documentId": zod.string(),
+  "studySetId": zod.string(),
+  "page": zod.number().int(),
+  "selectedText": zod.string(),
+  "body": zod.string(),
+  "explanation": zod.string().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Edit a private note
+ */
+export const UpdateNoteParams = zod.object({
+  "noteId": zod.coerce.string().uuid()
+})
+
+
+export const updateNoteBodySelectedTextMax = 5000;
+
+export const updateNoteBodyBodyMax = 5000;
+
+
+
+export const UpdateNoteBody = zod.object({
+  "page": zod.number().int().min(1).optional(),
+  "selectedText": zod.string().min(1).max(updateNoteBodySelectedTextMax).optional(),
+  "body": zod.string().max(updateNoteBodyBodyMax).optional()
+})
+
+export const UpdateNoteResponse = zod.object({
+  "id": zod.string(),
+  "documentId": zod.string(),
+  "studySetId": zod.string(),
+  "page": zod.number().int(),
+  "selectedText": zod.string(),
+  "body": zod.string(),
+  "explanation": zod.string().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Delete a private note
+ */
+export const DeleteNoteParams = zod.object({
+  "noteId": zod.coerce.string().uuid()
+})
+
+export const DeleteNoteResponse = zod.void()
+
+
+/**
+ * @summary Generate a plain-language explanation with its source reference
+ */
+export const ExplainNoteParams = zod.object({
+  "noteId": zod.coerce.string().uuid()
+})
+
+export const ExplainNoteResponse = zod.object({
+  "id": zod.string(),
+  "documentId": zod.string(),
+  "studySetId": zod.string(),
+  "page": zod.number().int(),
+  "selectedText": zod.string(),
+  "body": zod.string(),
+  "explanation": zod.string().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
  * Returns a presigned URL for direct upload of one private PDF.
  * @summary Request a presigned URL for file upload
  */
