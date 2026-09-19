@@ -1,5 +1,5 @@
 import { and, asc, count, desc, eq } from "drizzle-orm";
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type RequestHandler } from "express";
 import {
   CreateStudySetBody,
   CreateStudySetResponse,
@@ -12,10 +12,12 @@ import {
   UpdateReadingPositionResponse,
 } from "@workspace/api-zod";
 import { db, documentsTable, notesTable, studySetsTable } from "@workspace/db";
-import { requireAuth } from "../middlewares/auth";
-import { mostRecentlyOpenedDocument } from "../lib/reading-progress";
-
-const router: IRouter = Router();
+import { requireAuth } from "../middlewares/auth.ts";
+import {
+  boundedReadingPosition,
+  calculateReadingProgress,
+  mostRecentlyOpenedDocument,
+} from "../lib/reading-progress.ts";
 
 function summaryFromStudySet(
   studySet: typeof studySetsTable.$inferSelect,
@@ -70,20 +72,12 @@ async function getStudySetDetail(studySetId: string, userId: string) {
   };
 }
 
-function calculateProgress(
-  documents: Array<Pick<typeof documentsTable.$inferSelect, "currentPage" | "lastOpenedAt" | "pageCount">>,
-) {
-  if (documents.length === 0) return 0;
-  const totalPages = documents.reduce((total, document) => total + (document.pageCount ?? 1), 0);
-  const pagesRead = documents.reduce(
-    (total, document) =>
-      total + (document.lastOpenedAt ? Math.min(document.currentPage, document.pageCount ?? 1) : 0),
-    0,
-  );
-  return Math.min(100, Math.round((pagesRead / totalPages) * 100));
-}
+export function createStudySetsRouter(
+  authMiddleware: RequestHandler = requireAuth,
+): IRouter {
+const router: IRouter = Router();
 
-router.get("/dashboard/summary", requireAuth, async (_req, res): Promise<void> => {
+router.get("/dashboard/summary", authMiddleware, async (_req, res): Promise<void> => {
   const userId = res.locals.userId as string;
   const studySets = await db
     .select({
@@ -150,7 +144,7 @@ router.get("/dashboard/summary", requireAuth, async (_req, res): Promise<void> =
   );
 });
 
-router.get("/study-sets", requireAuth, async (_req, res): Promise<void> => {
+router.get("/study-sets", authMiddleware, async (_req, res): Promise<void> => {
   const userId = res.locals.userId as string;
   const rows = await db
     .select({
@@ -182,7 +176,7 @@ router.get("/study-sets", requireAuth, async (_req, res): Promise<void> => {
   );
 });
 
-router.post("/study-sets", requireAuth, async (req, res): Promise<void> => {
+router.post("/study-sets", authMiddleware, async (req, res): Promise<void> => {
   const parsed = CreateStudySetBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -219,7 +213,7 @@ router.post("/study-sets", requireAuth, async (req, res): Promise<void> => {
   res.status(201).json(CreateStudySetResponse.parse(result));
 });
 
-router.get("/study-sets/:studySetId", requireAuth, async (req, res): Promise<void> => {
+router.get("/study-sets/:studySetId", authMiddleware, async (req, res): Promise<void> => {
   const parsed = GetStudySetParams.safeParse(req.params);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -240,7 +234,7 @@ router.get("/study-sets/:studySetId", requireAuth, async (req, res): Promise<voi
 
 router.patch(
   "/study-sets/:studySetId/documents/:documentId/reading-position",
-  requireAuth,
+  authMiddleware,
   async (req, res): Promise<void> => {
     const params = UpdateReadingPositionParams.safeParse(req.params);
     const body = UpdateReadingPositionBody.safeParse(req.body);
@@ -271,7 +265,7 @@ router.patch(
     }
 
     const pageCount = body.data.pageCount ?? document.pageCount;
-    const page = Math.min(body.data.page, pageCount ?? body.data.page);
+    const page = boundedReadingPosition(body.data.page, pageCount);
     const now = new Date();
     await db
       .update(documentsTable)
@@ -300,7 +294,7 @@ router.patch(
     await db
       .update(studySetsTable)
       .set({
-        progress: calculateProgress(progressDocuments),
+        progress: calculateReadingProgress(progressDocuments),
         lastOpenedAt: now,
         updatedAt: now,
       })
@@ -320,4 +314,7 @@ router.patch(
   },
 );
 
-export default router;
+return router;
+}
+
+export default createStudySetsRouter();

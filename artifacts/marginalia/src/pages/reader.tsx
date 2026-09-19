@@ -7,6 +7,7 @@ import { Document as PdfDocument, Page as PdfPage, pdfjs } from "react-pdf";
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
 import { AppShell } from "@/components/marginalia-ui";
+import { readerStartPage } from "@/lib/reading-position";
 
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
   "pdfjs-dist/build/pdf.worker.min.mjs",
@@ -192,9 +193,10 @@ export default function ReaderPage() {
 
   useEffect(() => {
     if (!currentDocument) return;
-    setReadingPage(currentDocument.currentPage);
-    setNotePage(currentDocument.currentPage);
-    saveReadingPosition(currentDocument.currentPage, currentDocument.pageCount ?? undefined);
+    const savedPage = readerStartPage(currentDocument);
+    setReadingPage(savedPage);
+    setNotePage(savedPage);
+    saveReadingPosition(savedPage, currentDocument.pageCount ?? undefined);
   }, [currentDocument?.id]);
 
   const changeReadingPage = (nextPage: number) => {
