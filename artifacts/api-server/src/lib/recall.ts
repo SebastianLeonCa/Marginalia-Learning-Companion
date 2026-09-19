@@ -251,7 +251,7 @@ export function generateLocalRecallQuestions(
     options.splice(correctOptionIndex, 0, sourceQuote);
 
     return {
-      prompt: `Which statement matches the PDF passage beginning “${sourceQuote
+      prompt: `Recall question ${questionIndex + 1}: which statement matches the PDF passage beginning “${sourceQuote
         .split(/\s+/)
         .slice(0, 8)
         .join(" ")}”?`,
