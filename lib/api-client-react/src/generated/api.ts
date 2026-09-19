@@ -26,6 +26,7 @@ import type {
   Note,
   NoteInput,
   NoteUpdate,
+  ReadingPositionUpdate,
   StudySet,
   StudySetDetail,
   StudySetInput,
@@ -456,6 +457,97 @@ export function useGetStudySet<TData = Awaited<ReturnType<typeof getStudySet>>, 
 
 
 
+
+export const getUpdateReadingPositionUrl = (studySetId: string,
+    documentId: string,) => {
+
+
+
+
+  return `/api/study-sets/${studySetId}/documents/${documentId}/reading-position`
+}
+
+/**
+ * @summary Save the signed-in user's current page for a document
+ */
+export const updateReadingPosition = async (studySetId: string,
+    documentId: string,
+    readingPositionUpdate: ReadingPositionUpdate, options?: Parameters<typeof customFetch>[1]): Promise<StudySetDetail> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<StudySetDetail>(getUpdateReadingPositionUrl(studySetId,documentId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(readingPositionUpdate)
+  }
+);}
+
+
+
+
+
+export const getUpdateReadingPositionMutationKey = () => ['updateReadingPosition'] as const;
+
+export const getUpdateReadingPositionMutationOptions = <TError = ErrorType<ErrorEnvelope>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateReadingPosition>>, TError,UpdateReadingPositionMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateReadingPosition>>, TError,UpdateReadingPositionMutationVariables, TContext> => {
+
+const mutationKey = getUpdateReadingPositionMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateReadingPosition>>, UpdateReadingPositionMutationVariables> = (props) => {
+          const {studySetId,documentId,data} = props ?? {};
+
+          return  updateReadingPosition(studySetId,documentId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateReadingPositionMutationResult = NonNullable<Awaited<ReturnType<typeof updateReadingPosition>>>
+    export type UpdateReadingPositionMutationBody = BodyType<ReadingPositionUpdate>
+    export type UpdateReadingPositionMutationError = ErrorType<ErrorEnvelope>
+    export type UpdateReadingPositionMutationVariables = {studySetId: string;documentId: string;data: BodyType<ReadingPositionUpdate>}
+
+    /**
+ * @summary Save the signed-in user's current page for a document
+ */
+export const useUpdateReadingPosition = <TError = ErrorType<ErrorEnvelope>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateReadingPosition>>, TError,UpdateReadingPositionMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateReadingPosition>>,
+        TError,
+        UpdateReadingPositionMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdateReadingPositionMutationOptions(options));
+    }
 
 export const getListDocumentNotesUrl = (documentId: string,) => {
 

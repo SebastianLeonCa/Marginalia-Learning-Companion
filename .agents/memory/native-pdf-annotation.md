@@ -7,4 +7,4 @@ Do not assume a native PDF iframe can report selected text, page numbers, or sel
 
 **Why:** Browser PDF plugins are isolated and inconsistent, so parent-page selection listeners are not a reliable product interface.
 
-**How to apply:** Keep note storage independent of viewer implementation. If direct highlighting is added, preserve the same passage and page fields while changing only how they are populated.
+**How to apply:** Keep note storage independent of viewer implementation. Use parent-owned page controls for reliable resume tracking. If direct highlighting is added, preserve the same passage and page fields while changing only how they are populated.

@@ -71,6 +71,10 @@ export interface Document {
   objectPath: string;
   /** @nullable */
   pageCount: number | null;
+  /** @minimum 1 */
+  currentPage: number;
+  /** @nullable */
+  lastOpenedAt: string | null;
   processingStatus: DocumentProcessingStatus;
   uploadedAt: string;
 }
@@ -78,6 +82,13 @@ export interface Document {
 export type StudySetDetail = StudySet & {
   documents: Document[];
 };
+
+export interface ReadingPositionUpdate {
+  /** @minimum 1 */
+  page: number;
+  /** @minimum 1 */
+  pageCount?: number;
+}
 
 export interface DocumentInput {
   /** @minLength 1 */

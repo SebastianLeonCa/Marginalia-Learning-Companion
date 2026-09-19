@@ -7,9 +7,13 @@ import {
   GetStudySetParams,
   GetStudySetResponse,
   ListStudySetsResponse,
+  UpdateReadingPositionBody,
+  UpdateReadingPositionParams,
+  UpdateReadingPositionResponse,
 } from "@workspace/api-zod";
 import { db, documentsTable, notesTable, studySetsTable } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
+import { mostRecentlyOpenedDocument } from "../lib/reading-progress";
 
 const router: IRouter = Router();
 
@@ -66,6 +70,19 @@ async function getStudySetDetail(studySetId: string, userId: string) {
   };
 }
 
+function calculateProgress(
+  documents: Array<Pick<typeof documentsTable.$inferSelect, "currentPage" | "lastOpenedAt" | "pageCount">>,
+) {
+  if (documents.length === 0) return 0;
+  const totalPages = documents.reduce((total, document) => total + (document.pageCount ?? 1), 0);
+  const pagesRead = documents.reduce(
+    (total, document) =>
+      total + (document.lastOpenedAt ? Math.min(document.currentPage, document.pageCount ?? 1) : 0),
+    0,
+  );
+  return Math.min(100, Math.round((pagesRead / totalPages) * 100));
+}
+
 router.get("/dashboard/summary", requireAuth, async (_req, res): Promise<void> => {
   const userId = res.locals.userId as string;
   const studySets = await db
@@ -88,12 +105,14 @@ router.get("/dashboard/summary", requireAuth, async (_req, res): Promise<void> =
     .from(notesTable)
     .where(eq(notesTable.ownerId, userId));
 
-  const continueStudySet = studySets[0];
+  const continueStudySet = studySets.find((studySet) => studySet.lastOpenedAt);
   const continueReading = continueStudySet
     ? await db
         .select({
           documentId: documentsTable.id,
           documentName: documentsTable.name,
+          page: documentsTable.currentPage,
+          lastOpenedAt: documentsTable.lastOpenedAt,
         })
         .from(documentsTable)
         .where(
@@ -103,19 +122,19 @@ router.get("/dashboard/summary", requireAuth, async (_req, res): Promise<void> =
           ),
         )
         .orderBy(asc(documentsTable.uploadedAt))
-        .limit(1)
-        .then(([document]) =>
-          document
+        .then((documents) => {
+          const document = mostRecentlyOpenedDocument(documents);
+          return document
             ? {
                 studySetId: continueStudySet.id,
                 documentId: document.documentId,
                 studySetTitle: continueStudySet.title,
                 documentName: document.documentName,
                 progress: continueStudySet.progress,
-                page: 1,
+                page: document.page,
               }
-            : null,
-        )
+            : null;
+        })
     : null;
 
   res.json(
@@ -218,5 +237,87 @@ router.get("/study-sets/:studySetId", requireAuth, async (req, res): Promise<voi
 
   res.json(GetStudySetResponse.parse(detail));
 });
+
+router.patch(
+  "/study-sets/:studySetId/documents/:documentId/reading-position",
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const params = UpdateReadingPositionParams.safeParse(req.params);
+    const body = UpdateReadingPositionBody.safeParse(req.body);
+    if (!params.success) {
+      res.status(400).json({ error: params.error.message });
+      return;
+    }
+    if (!body.success) {
+      res.status(400).json({ error: body.error.message });
+      return;
+    }
+
+    const userId = res.locals.userId as string;
+    const [document] = await db
+      .select()
+      .from(documentsTable)
+      .where(
+        and(
+          eq(documentsTable.id, params.data.documentId),
+          eq(documentsTable.studySetId, params.data.studySetId),
+          eq(documentsTable.ownerId, userId),
+        ),
+      )
+      .limit(1);
+    if (!document) {
+      res.status(404).json({ error: "Document not found" });
+      return;
+    }
+
+    const pageCount = body.data.pageCount ?? document.pageCount;
+    const page = Math.min(body.data.page, pageCount ?? body.data.page);
+    const now = new Date();
+    await db
+      .update(documentsTable)
+      .set({ currentPage: page, lastOpenedAt: now, pageCount })
+      .where(eq(documentsTable.id, document.id));
+
+    const setDocuments = await db
+      .select({
+        id: documentsTable.id,
+        currentPage: documentsTable.currentPage,
+        lastOpenedAt: documentsTable.lastOpenedAt,
+        pageCount: documentsTable.pageCount,
+      })
+      .from(documentsTable)
+      .where(
+        and(
+          eq(documentsTable.studySetId, params.data.studySetId),
+          eq(documentsTable.ownerId, userId),
+        ),
+      );
+    const progressDocuments = setDocuments.map((item) =>
+      item.id === document.id
+        ? { ...item, currentPage: page, lastOpenedAt: now, pageCount }
+        : item,
+    );
+    await db
+      .update(studySetsTable)
+      .set({
+        progress: calculateProgress(progressDocuments),
+        lastOpenedAt: now,
+        updatedAt: now,
+      })
+      .where(
+        and(
+          eq(studySetsTable.id, params.data.studySetId),
+          eq(studySetsTable.ownerId, userId),
+        ),
+      );
+
+    const detail = await getStudySetDetail(params.data.studySetId, userId);
+    if (!detail) {
+      res.status(404).json({ error: "Study set not found" });
+      return;
+    }
+    res.json(UpdateReadingPositionResponse.parse(detail));
+  },
+);
 
 export default router;

@@ -92,6 +92,7 @@ export const createStudySetResponseOneProgressMax = 100;
 
 
 
+
 export const CreateStudySetResponse = zod.object({
   "id": zod.string(),
   "title": zod.string(),
@@ -109,6 +110,8 @@ export const CreateStudySetResponse = zod.object({
   "size": zod.number().int(),
   "objectPath": zod.string(),
   "pageCount": zod.number().int().nullable(),
+  "currentPage": zod.number().int().min(1),
+  "lastOpenedAt": zod.coerce.date().nullable(),
   "processingStatus": zod.enum(['uploaded', 'processing', 'ready', 'needs_review']),
   "uploadedAt": zod.coerce.date()
 }))
@@ -124,6 +127,7 @@ export const GetStudySetParams = zod.object({
 
 export const getStudySetResponseOneProgressMin = 0;
 export const getStudySetResponseOneProgressMax = 100;
+
 
 
 
@@ -144,6 +148,56 @@ export const GetStudySetResponse = zod.object({
   "size": zod.number().int(),
   "objectPath": zod.string(),
   "pageCount": zod.number().int().nullable(),
+  "currentPage": zod.number().int().min(1),
+  "lastOpenedAt": zod.coerce.date().nullable(),
+  "processingStatus": zod.enum(['uploaded', 'processing', 'ready', 'needs_review']),
+  "uploadedAt": zod.coerce.date()
+}))
+}))
+
+
+/**
+ * @summary Save the signed-in user's current page for a document
+ */
+export const UpdateReadingPositionParams = zod.object({
+  "studySetId": zod.coerce.string(),
+  "documentId": zod.coerce.string().uuid()
+})
+
+
+
+
+
+export const UpdateReadingPositionBody = zod.object({
+  "page": zod.number().int().min(1),
+  "pageCount": zod.number().int().min(1).optional()
+})
+
+export const updateReadingPositionResponseOneProgressMin = 0;
+export const updateReadingPositionResponseOneProgressMax = 100;
+
+
+
+
+export const UpdateReadingPositionResponse = zod.object({
+  "id": zod.string(),
+  "title": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "documentCount": zod.number().int(),
+  "noteCount": zod.number().int(),
+  "bestScore": zod.number().int(),
+  "progress": zod.number().int().min(updateReadingPositionResponseOneProgressMin).max(updateReadingPositionResponseOneProgressMax),
+  "lastOpenedAt": zod.coerce.date().nullable()
+}).and(zod.object({
+  "documents": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "size": zod.number().int(),
+  "objectPath": zod.string(),
+  "pageCount": zod.number().int().nullable(),
+  "currentPage": zod.number().int().min(1),
+  "lastOpenedAt": zod.coerce.date().nullable(),
   "processingStatus": zod.enum(['uploaded', 'processing', 'ready', 'needs_review']),
   "uploadedAt": zod.coerce.date()
 }))

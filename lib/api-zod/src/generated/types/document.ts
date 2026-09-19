@@ -14,6 +14,10 @@ export interface Document {
   objectPath: string;
   /** @nullable */
   pageCount: number | null;
+  /** @minimum 1 */
+  currentPage: number;
+  /** @nullable */
+  lastOpenedAt: Date | null;
   processingStatus: DocumentProcessingStatus;
   uploadedAt: Date;
 }

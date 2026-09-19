@@ -27,6 +27,8 @@ export const documentsTable = pgTable("documents", {
   size: integer("size").notNull(),
   objectPath: text("object_path").notNull().unique(),
   pageCount: integer("page_count"),
+  currentPage: integer("current_page").default(1).notNull(),
+  lastOpenedAt: timestamp("last_opened_at", { withTimezone: true }),
   processingStatus: text("processing_status").default("uploaded").notNull(),
   uploadedAt: timestamp("uploaded_at", { withTimezone: true }).defaultNow().notNull(),
 });

@@ -129,6 +129,49 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
+  /study-sets/{studySetId}/documents/{documentId}/reading-position:
+    patch:
+      operationId: updateReadingPosition
+      tags: [study-sets]
+      summary: Save the signed-in user's current page for a document
+      parameters:
+        - name: studySetId
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: "#/components/parameters/DocumentId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReadingPositionUpdate"
+      responses:
+        "200":
+          description: Updated study set detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudySetDetail"
+        "400":
+          description: Invalid reading position
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: Study set or document not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
   /documents/{documentId}/notes:
     get:
       operationId: listDocumentNotes
@@ -473,6 +516,12 @@ components:
           type: string
         pageCount:
           type: ["integer", "null"]
+        currentPage:
+          type: integer
+          minimum: 1
+        lastOpenedAt:
+          type: ["string", "null"]
+          format: date-time
         processingStatus:
           type: string
           enum: [uploaded, processing, ready, needs_review]
@@ -485,8 +534,21 @@ components:
         - size
         - objectPath
         - pageCount
+        - currentPage
+        - lastOpenedAt
         - processingStatus
         - uploadedAt
+    ReadingPositionUpdate:
+      type: object
+      properties:
+        page:
+          type: integer
+          minimum: 1
+        pageCount:
+          type: integer
+          minimum: 1
+      required:
+        - page
     StudySetInput:
       type: object
       properties:

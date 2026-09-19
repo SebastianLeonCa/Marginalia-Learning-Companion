@@ -1,9 +1,17 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AlertCircle, ArrowLeft, BookOpen, ChevronLeft, ChevronRight, ExternalLink, FileText, Highlighter, LockKeyhole, Pencil, RotateCcw, Sparkles, StickyNote, Trash2, X } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { getListDocumentNotesQueryKey, useCreateDocumentNote, useDeleteNote, useExplainNote, useGetStudySet, useListDocumentNotes, useUpdateNote, type Note } from "@workspace/api-client-react";
+import { getGetDashboardSummaryQueryKey, getGetStudySetQueryKey, getListDocumentNotesQueryKey, getListStudySetsQueryKey, useCreateDocumentNote, useDeleteNote, useExplainNote, useGetStudySet, useListDocumentNotes, useUpdateNote, useUpdateReadingPosition, type Note } from "@workspace/api-client-react";
 import { Link, useLocation, useParams } from "wouter";
+import { Document as PdfDocument, Page as PdfPage, pdfjs } from "react-pdf";
+import "react-pdf/dist/Page/AnnotationLayer.css";
+import "react-pdf/dist/Page/TextLayer.css";
 import { AppShell } from "@/components/marginalia-ui";
+
+pdfjs.GlobalWorkerOptions.workerSrc = new URL(
+  "pdfjs-dist/build/pdf.worker.min.mjs",
+  import.meta.url,
+).toString();
 
 function ReaderLoading() {
   return (
@@ -47,9 +55,14 @@ export default function ReaderPage() {
   const notesQuery = useListDocumentNotes(documentId);
   const queryClient = useQueryClient();
   const [viewerLoaded, setViewerLoaded] = useState(false);
+  const [viewerWidth, setViewerWidth] = useState(900);
+  const [renderedPageCount, setRenderedPageCount] = useState<number | null>(null);
+  const viewerRef = useRef<HTMLDivElement>(null);
+  const saveQueueRef = useRef<Promise<unknown>>(Promise.resolve());
   const [showComposer, setShowComposer] = useState(false);
   const [editingNote, setEditingNote] = useState<Note | null>(null);
-  const [page, setPage] = useState(1);
+  const [readingPage, setReadingPage] = useState(1);
+  const [notePage, setNotePage] = useState(1);
   const [selectedText, setSelectedText] = useState("");
   const [body, setBody] = useState("");
   const refreshNotes = () => queryClient.invalidateQueries({ queryKey: getListDocumentNotesQueryKey(documentId) });
@@ -57,6 +70,27 @@ export default function ReaderPage() {
   const updateNote = useUpdateNote({ mutation: { onSuccess: () => { void refreshNotes(); resetComposer(); } } });
   const deleteNote = useDeleteNote({ mutation: { onSuccess: () => void refreshNotes() } });
   const explainNote = useExplainNote({ mutation: { onSuccess: () => void refreshNotes() } });
+  const updateReadingPosition = useUpdateReadingPosition({
+    mutation: {
+      onSuccess: (detail) => {
+        queryClient.setQueryData(getGetStudySetQueryKey(studySetId), detail);
+        void queryClient.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey() });
+        void queryClient.invalidateQueries({ queryKey: getListStudySetsQueryKey() });
+      },
+    },
+  });
+
+  const saveReadingPosition = (nextPage: number, pageCount?: number) => {
+    saveQueueRef.current = saveQueueRef.current
+      .catch(() => undefined)
+      .then(() =>
+        updateReadingPosition.mutateAsync({
+          studySetId,
+          documentId,
+          data: { page: nextPage, ...(pageCount ? { pageCount } : {}) },
+        }),
+      );
+  };
 
   const documents = query.data?.documents ?? [];
   const currentIndex = documents.findIndex((document) => document.id === documentId);
@@ -66,24 +100,36 @@ export default function ReaderPage() {
 
   useEffect(() => {
     setViewerLoaded(false);
+    setRenderedPageCount(null);
     setShowComposer(false);
     setEditingNote(null);
-    setPage(1);
+    setReadingPage(1);
+    setNotePage(1);
     setSelectedText("");
     setBody("");
   }, [documentId]);
 
+  useEffect(() => {
+    const element = viewerRef.current;
+    if (!element) return;
+    const observer = new ResizeObserver(([entry]) => {
+      setViewerWidth(Math.max(280, Math.floor(entry.contentRect.width)));
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [currentDocument?.id]);
+
   function resetComposer() {
     setShowComposer(false);
     setEditingNote(null);
-    setPage(1);
+    setNotePage(1);
     setSelectedText("");
     setBody("");
   }
 
   function beginEdit(note: Note) {
     setEditingNote(note);
-    setPage(note.page);
+    setNotePage(note.page);
     setSelectedText(note.selectedText);
     setBody(note.body);
     setShowComposer(true);
@@ -92,9 +138,9 @@ export default function ReaderPage() {
   function saveNote() {
     if (!selectedText.trim()) return;
     if (editingNote) {
-      updateNote.mutate({ noteId: editingNote.id, data: { page, selectedText, body } });
+      updateNote.mutate({ noteId: editingNote.id, data: { page: notePage, selectedText, body } });
     } else {
-      createNote.mutate({ documentId, data: { page, selectedText, body } });
+      createNote.mutate({ documentId, data: { page: notePage, selectedText, body } });
     }
   }
 
@@ -122,6 +168,22 @@ export default function ReaderPage() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [nextDocument, previousDocument, setLocation, studySetId]);
 
+  useEffect(() => {
+    if (!currentDocument) return;
+    setReadingPage(currentDocument.currentPage);
+    setNotePage(currentDocument.currentPage);
+    saveReadingPosition(currentDocument.currentPage, currentDocument.pageCount ?? undefined);
+  }, [currentDocument?.id]);
+
+  const changeReadingPage = (nextPage: number) => {
+    if (!currentDocument) return;
+    const pageCount = renderedPageCount ?? currentDocument.pageCount;
+    const boundedPage = Math.max(1, Math.min(nextPage, pageCount ?? nextPage));
+    setReadingPage(boundedPage);
+    setNotePage(boundedPage);
+    saveReadingPosition(boundedPage, pageCount ?? undefined);
+  };
+
   if (query.isLoading) return <ReaderLoading />;
   if (query.isError || !query.data) return <ReaderError onRetry={() => void query.refetch()} />;
 
@@ -146,6 +208,7 @@ export default function ReaderPage() {
     ? `/api/storage${currentDocument.objectPath.startsWith("/") ? currentDocument.objectPath : `/${currentDocument.objectPath}`}`
     : "";
   const canReadPdf = currentDocument.processingStatus !== "processing";
+  const pageCount = renderedPageCount ?? currentDocument.pageCount;
 
   return (
     <AppShell>
@@ -216,7 +279,7 @@ export default function ReaderPage() {
                   <div className="flex items-center gap-2 text-xs font-bold text-foreground/70"><span className="h-2 w-2 rounded-full bg-secondary" /> Native PDF view</div>
                   <span className="text-[10px] font-bold uppercase tracking-[.15em] text-muted-foreground">private file</span>
                 </div>
-                <div className="relative min-h-[62vh] bg-[#bdb09d] p-2 sm:p-4">
+                <div ref={viewerRef} className="relative min-h-[62vh] bg-[#bdb09d] p-2 sm:p-4">
                   {!canReadPdf ? (
                     <div className="grid min-h-[60vh] place-items-center rounded-xl border-2 border-dashed border-[#a99b88] bg-[#e8dece] px-6 text-center">
                       <div className="max-w-sm">
@@ -227,10 +290,31 @@ export default function ReaderPage() {
                       </div>
                     </div>
                   ) : objectUrl ? (
-                    <>
-                      {!viewerLoaded && <div className="absolute inset-4 z-10 grid place-items-center rounded-xl bg-[#e8dece]"><div className="w-full max-w-xs space-y-3 px-8"><div className="h-3 w-1/3 animate-pulse rounded-full bg-[#cfc2ae]" /><div className="h-3 w-full animate-pulse rounded-full bg-[#cfc2ae]" /><div className="h-3 w-4/5 animate-pulse rounded-full bg-[#cfc2ae]" /><p className="pt-2 text-center text-xs font-semibold text-muted-foreground">Opening your paper…</p></div></div>}
-                      <iframe key={currentDocument.id} src={objectUrl} title={`PDF reader for ${currentDocument.name}`} onLoad={() => setViewerLoaded(true)} className={`h-[70vh] min-h-[560px] w-full rounded-xl bg-[#f7f0e3] transition-opacity duration-500 ${viewerLoaded ? "opacity-100" : "opacity-0"}`} data-testid="iframe-private-pdf" />
-                    </>
+                    <PdfDocument
+                      key={currentDocument.id}
+                      file={objectUrl}
+                      onLoadSuccess={({ numPages }) => {
+                        setViewerLoaded(true);
+                        setRenderedPageCount(numPages);
+                        const boundedPage = Math.min(readingPage, numPages);
+                        if (boundedPage !== readingPage) {
+                          setReadingPage(boundedPage);
+                          setNotePage(boundedPage);
+                        }
+                        saveReadingPosition(boundedPage, numPages);
+                      }}
+                      loading={<div className="grid min-h-[60vh] place-items-center rounded-xl bg-[#e8dece]"><p className="text-xs font-semibold text-muted-foreground">Opening your paper…</p></div>}
+                      error={<div className="grid min-h-[60vh] place-items-center rounded-xl bg-[#e8dece] px-6 text-center"><div><AlertCircle className="mx-auto text-primary" size={30} /><p className="mt-3 font-serif text-xl font-bold">This PDF could not be displayed.</p><p className="mt-2 text-sm text-muted-foreground">Try opening it separately or return to the study set.</p></div></div>}
+                      className={`flex min-h-[60vh] justify-center overflow-auto rounded-xl transition-opacity duration-300 ${viewerLoaded ? "opacity-100" : "opacity-0"}`}
+                    >
+                      <PdfPage
+                        pageNumber={readingPage}
+                        width={Math.min(viewerWidth - 32, 920)}
+                        renderAnnotationLayer
+                        renderTextLayer
+                        data-testid="controlled-pdf-page"
+                      />
+                    </PdfDocument>
                   ) : (
                     <div className="grid min-h-[60vh] place-items-center rounded-xl border-2 border-dashed border-[#a99b88] bg-[#e8dece] px-6 text-center">
                       <div><FileText className="mx-auto text-primary" size={34} /><p className="mt-4 font-serif text-xl font-bold">No private file path found.</p><p className="mt-2 text-sm text-muted-foreground">Return to the study set and try another document.</p></div>
@@ -238,8 +322,13 @@ export default function ReaderPage() {
                   )}
                 </div>
                 <div className="flex flex-wrap items-center justify-between gap-3 bg-[#e6dac8] px-4 py-3 text-xs text-muted-foreground">
-                  <span>{canReadPdf ? "The browser PDF surface keeps your file private." : "Preparing a quiet place for this paper."}</span>
-                  <span className="font-bold text-foreground/60">{currentDocument.pageCount ? `${currentDocument.pageCount} pages` : "Page count pending"}</span>
+                  <span>{canReadPdf ? "The in-app PDF reader keeps the visible page in sync." : "Preparing a quiet place for this paper."}</span>
+                  <div className="flex items-center gap-2">
+                    <button type="button" onClick={() => changeReadingPage(readingPage - 1)} disabled={readingPage <= 1} className="rounded-lg p-1.5 font-bold hover:bg-card disabled:opacity-40" aria-label="Previous page"><ChevronLeft size={15} /></button>
+                    <label className="flex items-center gap-1 font-bold text-foreground/70">Page <input type="number" min={1} max={pageCount ?? undefined} value={readingPage} onChange={(event) => changeReadingPage(Number(event.target.value) || 1)} className="w-16 rounded-lg border border-[#b9aa95] bg-[#f7f0e3] px-2 py-1 text-center text-foreground" data-testid="input-reading-page" /></label>
+                    <span className="font-bold text-foreground/60">{pageCount ? `of ${pageCount}` : ""}</span>
+                    <button type="button" onClick={() => changeReadingPage(readingPage + 1)} disabled={Boolean(pageCount && readingPage >= pageCount)} className="rounded-lg p-1.5 font-bold hover:bg-card disabled:opacity-40" aria-label="Next page"><ChevronRight size={15} /></button>
+                  </div>
                 </div>
               </div>
               <div className="mt-4 flex items-center justify-between gap-3">
@@ -264,7 +353,7 @@ export default function ReaderPage() {
               {showComposer && (
                 <div className="mt-4 space-y-3 rounded-2xl border border-border bg-card p-3" data-testid="note-composer">
                   <div className="flex items-center justify-between"><p className="text-xs font-bold">{editingNote ? "Edit note" : "New note"}</p><button type="button" onClick={resetComposer} aria-label="Close note editor"><X size={15} /></button></div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Page<input type="number" min={1} max={currentDocument.pageCount ?? undefined} value={page} onChange={(event) => setPage(Math.max(1, Number(event.target.value)))} className="mt-1 w-full rounded-lg border border-border bg-background px-2 py-2 text-sm text-foreground" data-testid="input-note-page" /></label>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Page<input type="number" min={1} max={currentDocument.pageCount ?? undefined} value={notePage} onChange={(event) => setNotePage(Math.max(1, Number(event.target.value)))} className="mt-1 w-full rounded-lg border border-border bg-background px-2 py-2 text-sm text-foreground" data-testid="input-note-page" /></label>
                   <label className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Selected passage<textarea value={selectedText} onChange={(event) => setSelectedText(event.target.value)} rows={4} maxLength={5000} placeholder="Paste the passage you selected…" className="mt-1 w-full resize-y rounded-lg border border-border bg-background px-2 py-2 text-sm normal-case tracking-normal text-foreground" data-testid="textarea-selected-passage" /></label>
                   <label className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Your note<textarea value={body} onChange={(event) => setBody(event.target.value)} rows={3} maxLength={5000} placeholder="What do you want to remember?" className="mt-1 w-full resize-y rounded-lg border border-border bg-background px-2 py-2 text-sm normal-case tracking-normal text-foreground" data-testid="textarea-note-body" /></label>
                   <button type="button" onClick={saveNote} disabled={!selectedText.trim() || createNote.isPending || updateNote.isPending} className="w-full rounded-lg bg-primary px-3 py-2 text-xs font-bold text-primary-foreground disabled:opacity-50" data-testid="button-save-note">{createNote.isPending || updateNote.isPending ? "Saving…" : "Save note"}</button>

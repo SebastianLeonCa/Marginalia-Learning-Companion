@@ -16,6 +16,7 @@ export * from './healthStatus';
 export * from './note';
 export * from './noteInput';
 export * from './noteUpdate';
+export * from './readingPositionUpdate';
 export * from './studySet';
 export * from './studySetDetail';
 export * from './studySetInput';
