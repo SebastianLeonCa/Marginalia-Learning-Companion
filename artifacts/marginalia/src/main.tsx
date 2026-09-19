@@ -1,5 +1,6 @@
 import { createRoot } from 'react-dom/client';
 
+import './lib/pdfjs-compat';
 import App from './App';
 import { ErrorBoundary } from '@/components/error-boundary';
 

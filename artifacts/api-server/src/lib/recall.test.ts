@@ -6,6 +6,7 @@ import { createRecallRouter } from "../routes/recall.ts";
 import {
   InsufficientPdfTextError,
   RecallQuizStore,
+  generateLocalRecallQuestions,
   prepareRecallSource,
   validateGeneratedRecallQuiz,
   type GeneratedRecallQuestion,
@@ -143,6 +144,27 @@ test("short or image-only PDF text is rejected before quiz generation", () => {
     InsufficientPdfTextError,
   );
   assert.ok(prepareRecallSource("substantive ".repeat(120)).length > 700);
+});
+
+test("local Recall generation produces five grounded questions without an AI provider", () => {
+  const sourceText = [
+    "The first principle describes how readers form durable memories from repeated retrieval practice.",
+    "The second principle explains why a short pause can improve attention during difficult reading sessions.",
+    "The third principle connects written annotations with later review and careful comparison.",
+    "The fourth principle recommends returning to important evidence before making a final claim.",
+    "The fifth principle says that private reflection can make complex material easier to discuss.",
+    "The sixth principle observes that clear questions help readers notice relationships across a long argument.",
+    "The seventh principle distinguishes a useful summary from a list of disconnected details.",
+    "The eighth principle emphasizes that the reader should check an interpretation against the source.",
+  ].join(" ");
+  const questions = generateLocalRecallQuestions(sourceText);
+  assert.equal(questions.length, 5);
+  assert.ok(questions.every((question) => question.options.length === 4));
+  assert.ok(
+    questions.every((question) =>
+      sourceText.toLocaleLowerCase().includes(question.sourceQuote.toLocaleLowerCase()),
+    ),
+  );
 });
 
 test("Recall never exposes the answer key at creation and hides quizzes across owners", async () => {
