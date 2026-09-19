@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertCircle, ArrowLeft, BookOpen, ChevronLeft, ChevronRight, ExternalLink, FileScan, FileText, Highlighter, LoaderCircle, LockKeyhole, Pencil, RotateCcw, Sparkles, StickyNote, Trash2, X } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { getGetDashboardSummaryQueryKey, getGetStudySetQueryKey, getListDocumentNotesQueryKey, getListStudySetsQueryKey, useCreateDocumentNote, useDeleteNote, useExplainNote, useGetStudySet, useListDocumentNotes, useUpdateNote, useUpdateReadingPosition, type Note } from "@workspace/api-client-react";
@@ -108,6 +108,10 @@ export default function ReaderPage() {
     ? `/api/storage${currentDocument.objectPath.startsWith("/") ? currentDocument.objectPath : `/${currentDocument.objectPath}`}`
     : "";
   const canReadPdf = currentDocument?.processingStatus !== "processing";
+  const pdfFile = useMemo(
+    () => (pdfData ? { data: pdfData } : null),
+    [pdfData],
+  );
 
   useEffect(() => {
     setViewerLoaded(false);
@@ -400,10 +404,10 @@ export default function ReaderPage() {
                         <span className="mt-5 inline-flex rounded-full bg-accent px-3 py-1.5 text-[11px] font-bold capitalize text-foreground">{currentDocument.processingStatus.replace("_", " ")}</span>
                       </div>
                     </div>
-                  ) : objectUrl && pdfData ? (
+                  ) : objectUrl && pdfFile ? (
                     <PdfDocument
                       key={currentDocument.id}
-                      file={{ data: pdfData }}
+                      file={pdfFile}
                       onLoadSuccess={({ numPages }) => {
                         setViewerLoaded(true);
                         setRenderedPageCount(numPages);
