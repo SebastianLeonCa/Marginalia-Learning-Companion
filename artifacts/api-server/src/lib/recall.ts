@@ -4,6 +4,7 @@ import { PDFParse } from "pdf-parse";
 const MIN_SOURCE_CHARACTERS = 700;
 const MIN_SOURCE_WORDS = 100;
 const MAX_SOURCE_CHARACTERS = 60_000;
+const MAX_GROQ_SOURCE_CHARACTERS = 12_000;
 export const MAX_RECALL_PDF_BYTES = 25 * 1024 * 1024;
 const MAX_PDF_PAGES = 80;
 const QUIZ_TTL_MS = 30 * 60 * 1000;
@@ -231,13 +232,18 @@ export function generateLocalRecallQuestions(
     );
   }
 
+  const rotation = Number.parseInt(randomUUID().replaceAll("-", "").slice(0, 8), 16) % excerpts.length;
+  const rotatedExcerpts = [
+    ...excerpts.slice(rotation),
+    ...excerpts.slice(0, rotation),
+  ];
   const selected = Array.from({ length: 5 }, (_, index) => {
-    const position = Math.floor((index * (excerpts.length - 1)) / 4);
-    return excerpts[position];
+    const position = Math.floor((index * (rotatedExcerpts.length - 1)) / 4);
+    return rotatedExcerpts[position];
   });
 
   const questions = selected.map((sourceQuote, questionIndex) => {
-    const distractors = excerpts
+    const distractors = rotatedExcerpts
       .filter((excerpt) => excerpt !== sourceQuote)
       .slice(questionIndex + 1, questionIndex + 4);
     if (distractors.length < 3) {
@@ -306,6 +312,7 @@ function normalizeGroqQuiz(value: unknown, sourceText: string): unknown {
       const rawAnswer =
         question.correctOptionIndex ??
         question.answer ??
+        question.correctOption ??
         question.correctAnswer;
       const correctOptionIndex =
         Number.isInteger(rawAnswer)
@@ -349,6 +356,7 @@ async function generateGroqRecallQuestions(
   if (!apiKey) {
     throw new Error("GROQ_API_KEY is not configured");
   }
+  const groqSource = sourceText.slice(0, MAX_GROQ_SOURCE_CHARACTERS);
 
   const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
@@ -358,8 +366,8 @@ async function generateGroqRecallQuestions(
     },
     body: JSON.stringify({
       model: process.env.GROQ_MODEL ?? "openai/gpt-oss-120b",
-      temperature: 0.2,
-      max_tokens: 6_000,
+      temperature: 0.1,
+      max_tokens: 2_500,
       response_format: { type: "json_object" },
       messages: [
         {
@@ -369,7 +377,7 @@ async function generateGroqRecallQuestions(
         },
         {
           role: "user",
-          content: `PDF TEXT START\n${sourceText}\nPDF TEXT END`,
+          content: `Create a fresh quiz variant for this request. Variation id: ${randomUUID()}\nPDF TEXT START\n${groqSource}\nPDF TEXT END`,
         },
       ],
     }),
@@ -397,8 +405,8 @@ async function generateGroqRecallQuestions(
 
   try {
     return validateGeneratedRecallQuiz(
-      normalizeGroqQuiz(parseGroqContent(content), sourceText),
-      sourceText,
+      normalizeGroqQuiz(parseGroqContent(content), groqSource),
+      groqSource,
     );
   } catch (error) {
     if (error instanceof InvalidGeneratedQuizError) throw error;
