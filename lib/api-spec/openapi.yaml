@@ -16,6 +16,8 @@ tags:
     description: Study set and document operations
   - name: notes
     description: Private document notes and explanations
+  - name: recall
+    description: Private multiple-choice quizzes grounded in one PDF
   - name: Storage
     description: Object storage upload and serving endpoints.
 paths:
@@ -286,6 +288,95 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
+  /study-sets/{studySetId}/documents/{documentId}/recall:
+    post:
+      operationId: createRecallQuiz
+      tags: [recall]
+      summary: Generate a five-question quiz from one owned PDF
+      parameters:
+        - name: studySetId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/DocumentId"
+      responses:
+        "200":
+          description: Quiz generated without revealing correct answers
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecallQuiz"
+        "400":
+          description: The PDF does not contain enough extractable text
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: Study set or document not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "422":
+          description: Quiz generation returned an unusable result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "429":
+          description: Quiz generation is already in progress or was requested too often
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /recall/{quizId}/questions/{questionId}/answer:
+    post:
+      operationId: answerRecallQuestion
+      tags: [recall]
+      summary: Evaluate one answer in a private Recall quiz
+      parameters:
+        - $ref: "#/components/parameters/QuizId"
+        - $ref: "#/components/parameters/QuestionId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RecallAnswerInput"
+      responses:
+        "200":
+          description: Answer feedback
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecallAnswerResult"
+        "400":
+          description: Invalid option
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: Quiz or question not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
   /storage/uploads/request-url:
     post:
       tags: [Storage]
@@ -384,6 +475,20 @@ components:
         format: uuid
     NoteId:
       name: noteId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    QuizId:
+      name: quizId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    QuestionId:
+      name: questionId
       in: path
       required: true
       schema:
@@ -632,6 +737,72 @@ components:
         body:
           type: string
           maxLength: 5000
+    RecallOption:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        text:
+          type: string
+      required: [id, text]
+    RecallQuestion:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        prompt:
+          type: string
+        options:
+          type: array
+          minItems: 4
+          maxItems: 4
+          items:
+            $ref: "#/components/schemas/RecallOption"
+      required: [id, prompt, options]
+    RecallQuiz:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        documentId:
+          type: string
+          format: uuid
+        documentName:
+          type: string
+        questions:
+          type: array
+          minItems: 5
+          maxItems: 5
+          items:
+            $ref: "#/components/schemas/RecallQuestion"
+      required: [id, documentId, documentName, questions]
+    RecallAnswerInput:
+      type: object
+      properties:
+        optionId:
+          type: string
+          format: uuid
+      required: [optionId]
+    RecallAnswerResult:
+      type: object
+      properties:
+        questionId:
+          type: string
+          format: uuid
+        selectedOptionId:
+          type: string
+          format: uuid
+        correctOptionId:
+          type: string
+          format: uuid
+        correct:
+          type: boolean
+        explanation:
+          type: string
+      required: [questionId, selectedOptionId, correctOptionId, correct, explanation]
     UploadUrlRequest:
       type: object
       properties:

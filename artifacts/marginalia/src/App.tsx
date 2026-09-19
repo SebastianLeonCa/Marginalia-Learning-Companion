@@ -10,6 +10,7 @@ import LandingPage from '@/pages/landing';
 import HomePage from '@/pages/home';
 import StudySetPage from '@/pages/study-set';
 import ReaderPage from '@/pages/reader';
+import RecallPage from '@/pages/recall';
 import {
   Redirect,
   Route,
@@ -95,6 +96,7 @@ function Router() {
         <Route path="/sign-up/*?" component={SignUpPage} />
         <Route path="/home"><PrivateRoute><HomePage /></PrivateRoute></Route>
         <Route path="/study-sets/:studySetId/read/:documentId"><PrivateRoute><ReaderPage /></PrivateRoute></Route>
+        <Route path="/study-sets/:studySetId/recall/:documentId"><PrivateRoute><RecallPage /></PrivateRoute></Route>
         <Route path="/study-sets/:studySetId"><PrivateRoute><StudySetPage /></PrivateRoute></Route>
         <Route component={NotFound} />
       </Switch>

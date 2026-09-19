@@ -27,6 +27,9 @@ import type {
   NoteInput,
   NoteUpdate,
   ReadingPositionUpdate,
+  RecallAnswerInput,
+  RecallAnswerResult,
+  RecallQuiz,
   StudySet,
   StudySetDetail,
   StudySetInput,
@@ -950,6 +953,173 @@ export const useExplainNote = <TError = ErrorType<ErrorEnvelope>,
         TContext
       > => {
       return useMutation(getExplainNoteMutationOptions(options));
+    }
+
+export const getCreateRecallQuizUrl = (studySetId: string,
+    documentId: string,) => {
+
+
+
+
+  return `/api/study-sets/${studySetId}/documents/${documentId}/recall`
+}
+
+/**
+ * @summary Generate a five-question quiz from one owned PDF
+ */
+export const createRecallQuiz = async (studySetId: string,
+    documentId: string, options?: Parameters<typeof customFetch>[1]): Promise<RecallQuiz> => {
+
+  return customFetch<RecallQuiz>(getCreateRecallQuizUrl(studySetId,documentId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getCreateRecallQuizMutationKey = () => ['createRecallQuiz'] as const;
+
+export const getCreateRecallQuizMutationOptions = <TError = ErrorType<ErrorEnvelope>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createRecallQuiz>>, TError,CreateRecallQuizMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createRecallQuiz>>, TError,CreateRecallQuizMutationVariables, TContext> => {
+
+const mutationKey = getCreateRecallQuizMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createRecallQuiz>>, CreateRecallQuizMutationVariables> = (props) => {
+          const {studySetId,documentId} = props ?? {};
+
+          return  createRecallQuiz(studySetId,documentId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateRecallQuizMutationResult = NonNullable<Awaited<ReturnType<typeof createRecallQuiz>>>
+
+    export type CreateRecallQuizMutationError = ErrorType<ErrorEnvelope>
+    export type CreateRecallQuizMutationVariables = {studySetId: string;documentId: string}
+
+    /**
+ * @summary Generate a five-question quiz from one owned PDF
+ */
+export const useCreateRecallQuiz = <TError = ErrorType<ErrorEnvelope>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createRecallQuiz>>, TError,CreateRecallQuizMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createRecallQuiz>>,
+        TError,
+        CreateRecallQuizMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateRecallQuizMutationOptions(options));
+    }
+
+export const getAnswerRecallQuestionUrl = (quizId: string,
+    questionId: string,) => {
+
+
+
+
+  return `/api/recall/${quizId}/questions/${questionId}/answer`
+}
+
+/**
+ * @summary Evaluate one answer in a private Recall quiz
+ */
+export const answerRecallQuestion = async (quizId: string,
+    questionId: string,
+    recallAnswerInput: RecallAnswerInput, options?: Parameters<typeof customFetch>[1]): Promise<RecallAnswerResult> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<RecallAnswerResult>(getAnswerRecallQuestionUrl(quizId,questionId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(recallAnswerInput)
+  }
+);}
+
+
+
+
+
+export const getAnswerRecallQuestionMutationKey = () => ['answerRecallQuestion'] as const;
+
+export const getAnswerRecallQuestionMutationOptions = <TError = ErrorType<ErrorEnvelope>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof answerRecallQuestion>>, TError,AnswerRecallQuestionMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof answerRecallQuestion>>, TError,AnswerRecallQuestionMutationVariables, TContext> => {
+
+const mutationKey = getAnswerRecallQuestionMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof answerRecallQuestion>>, AnswerRecallQuestionMutationVariables> = (props) => {
+          const {quizId,questionId,data} = props ?? {};
+
+          return  answerRecallQuestion(quizId,questionId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AnswerRecallQuestionMutationResult = NonNullable<Awaited<ReturnType<typeof answerRecallQuestion>>>
+    export type AnswerRecallQuestionMutationBody = BodyType<RecallAnswerInput>
+    export type AnswerRecallQuestionMutationError = ErrorType<ErrorEnvelope>
+    export type AnswerRecallQuestionMutationVariables = {quizId: string;questionId: string;data: BodyType<RecallAnswerInput>}
+
+    /**
+ * @summary Evaluate one answer in a private Recall quiz
+ */
+export const useAnswerRecallQuestion = <TError = ErrorType<ErrorEnvelope>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof answerRecallQuestion>>, TError,AnswerRecallQuestionMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof answerRecallQuestion>>,
+        TError,
+        AnswerRecallQuestionMutationVariables,
+        TContext
+      > => {
+      return useMutation(getAnswerRecallQuestionMutationOptions(options));
     }
 
 export const getRequestUploadUrlUrl = () => {

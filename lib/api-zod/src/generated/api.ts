@@ -322,6 +322,58 @@ export const ExplainNoteResponse = zod.object({
 
 
 /**
+ * @summary Generate a five-question quiz from one owned PDF
+ */
+export const CreateRecallQuizParams = zod.object({
+  "studySetId": zod.coerce.string().uuid(),
+  "documentId": zod.coerce.string().uuid()
+})
+
+export const createRecallQuizResponseQuestionsItemOptionsMin = 4;
+export const createRecallQuizResponseQuestionsItemOptionsMax = 4;
+
+export const createRecallQuizResponseQuestionsMin = 5;
+export const createRecallQuizResponseQuestionsMax = 5;
+
+
+
+export const CreateRecallQuizResponse = zod.object({
+  "id": zod.string().uuid(),
+  "documentId": zod.string().uuid(),
+  "documentName": zod.string(),
+  "questions": zod.array(zod.object({
+  "id": zod.string().uuid(),
+  "prompt": zod.string(),
+  "options": zod.array(zod.object({
+  "id": zod.string().uuid(),
+  "text": zod.string()
+})).min(createRecallQuizResponseQuestionsItemOptionsMin).max(createRecallQuizResponseQuestionsItemOptionsMax)
+})).min(createRecallQuizResponseQuestionsMin).max(createRecallQuizResponseQuestionsMax)
+})
+
+
+/**
+ * @summary Evaluate one answer in a private Recall quiz
+ */
+export const AnswerRecallQuestionParams = zod.object({
+  "quizId": zod.coerce.string().uuid(),
+  "questionId": zod.coerce.string().uuid()
+})
+
+export const AnswerRecallQuestionBody = zod.object({
+  "optionId": zod.string().uuid()
+})
+
+export const AnswerRecallQuestionResponse = zod.object({
+  "questionId": zod.string().uuid(),
+  "selectedOptionId": zod.string().uuid(),
+  "correctOptionId": zod.string().uuid(),
+  "correct": zod.boolean(),
+  "explanation": zod.string()
+})
+
+
+/**
  * Returns a presigned URL for direct upload of one private PDF.
  * @summary Request a presigned URL for file upload
  */

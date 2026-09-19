@@ -149,6 +149,44 @@ export interface NoteUpdate {
   body?: string;
 }
 
+export interface RecallOption {
+  id: string;
+  text: string;
+}
+
+export interface RecallQuestion {
+  id: string;
+  prompt: string;
+  /**
+     * @minItems 4
+     * @maxItems 4
+     */
+  options: RecallOption[];
+}
+
+export interface RecallQuiz {
+  id: string;
+  documentId: string;
+  documentName: string;
+  /**
+     * @minItems 5
+     * @maxItems 5
+     */
+  questions: RecallQuestion[];
+}
+
+export interface RecallAnswerInput {
+  optionId: string;
+}
+
+export interface RecallAnswerResult {
+  questionId: string;
+  selectedOptionId: string;
+  correctOptionId: string;
+  correct: boolean;
+  explanation: string;
+}
+
 export interface UploadUrlRequest {
   /** @minLength 1 */
   name: string;
